@@ -1,0 +1,4803 @@
+complextype,NOII_type,NOAM_type,NOCS_type,NOM_type,NMO_type,ATFD_type,FANOUT_type,NOMNAMM_type,NOA_type,NIM_type,DIT_type,LOC_type,LOCNAMM_type,CFNAMM_type,TCC_type,CBO_type,RFC_type,NOC_type,WMC_type,LCOM5_type,WOC_type,WMCNAMM_type,AMW_type,AMWNAMM_type,NOCS_package,NOMNAMM_package,NOI_package,LOC_package,NOM_package,NOPK_project,NOCS_project,NOI_project,NOM_project,NOMNAMM_project,LOC_project,isStatic_type,NOPA_type,number_private_visibility_attributes,number_protected_visibility_attributes,number_package_visibility_attributes,num_final_attributes,num_static_attributes,num_final_static_attributes,num_not_final_not_static_attributes,num_final_not_static_attributes,num_static_not_final_attributes,number_public_visibility_methods,number_private_visibility_methods,number_protected_visibility_methods,number_package_visibility_methods,number_final_methods,number_abstract_methods,number_not_abstract_not_final_methods,number_static_methods,number_final_static_methods,number_final_not_static_methods,number_not_final_static_methods,number_not_final_not_static_methods,number_standard_design_methods,number_constructor_DefaultConstructor_methods,number_constructor_NotDefaultConstructor_methods,is_god_class_count,is_god_class_sum,is_god_class_count_negative,is_god_class_count_positive,class_source_code,is_god_class
+com.jasml.classes.JavaClass,0,0,0,0,0,0,0,0,16,0,1,34,34,0,1.0,4,0,0,0,0.0,0.0,0,0.0,0.0,32,46,0,1690,48,4,48,1,245,233,6694,0,16,0,0,0,0,0,0,16,0,0,1,0,0,0,0,0,1,0,0,0,0,1,0,1,0,1,-1,1,0,"/*
+ * Author jyang Created on 2006-4-3 15:49:46
+ */
+package com.jasml.classes;
+
+public class JavaClass {
+    public int magic = 0xCAFEBABE;
+
+    public int minor_version = 0;
+
+    public int major_version = 46;
+
+    public int constant_pool_count;
+
+    public ConstantPool constantPool;
+
+    public short access_flags;
+
+    public int this_class;
+
+    public int super_class;
+
+    public int interfaces_count;
+
+    public int[] interfaces;
+
+    public int fields_count;
+
+    public Field[] fields;
+
+    public int methods_count;
+
+    public Method[] methods;
+
+    public int attributes_count;
+
+    public Attribute[] attributes;
+
+}",False
+com.jasml.compiler.ConstantPoolGenerator,0,1,0,25,0,11,14,24,6,0,1,312,304,16,1.0,15,41,0,62,0.701388889,0.923076923,61,2.48,2.541666667,8,100,1,2639,109,4,48,1,245,233,6694,0,0,6,0,0,0,0,0,6,0,0,13,12,0,0,0,0,25,1,0,0,1,24,23,0,1,87,85,1,86,"/*
+ * Author jyang
+ * Created on 2006-4-7 11:08:44
+ */
+package com.jasml.compiler;
+
+import java.util.HashMap;
+
+import com.jasml.classes.*;
+import com.jasml.helper.Util;
+
+
+public class ConstantPoolGenerator {
+	private ConstantPoolItem[] items;
+
+	private int count = 1;
+
+	private HashMap classes = new HashMap();
+
+	private HashMap nameTypes = new HashMap();
+
+	private HashMap mifRef = new HashMap(); // methodRef, fieldRef, interfaceMethodRef
+
+	private HashMap strings = new HashMap();
+
+	public ConstantPoolGenerator() {
+		items = new ConstantPoolItem[30];
+		items[0] = new ConstantPoolItem((byte) 0);
+	}
+
+	public ConstantPool getConstantPool() {
+		ConstantPoolItem[] ret = new ConstantPoolItem[count];
+		System.arraycopy(items, 0, ret, 0, count);
+		ConstantPool cpl = new ConstantPool(ret);
+		return cpl;
+	}
+
+	/**
+	 * this can be used to add a Constant_Class entry into constant pool.
+	 * a constant class could be of a class type( like java/lang/Object),
+	 * or of an array type of class(like [Ljava/lang/Object;),
+	 * or array type of a primitive type(like [[I)
+	 * @param className can be Strings like java.lang.Object, java.lang.Object[][], int[][].
+	 * @return
+	 */
+	public int addClass(String className) {
+		int index = 0;
+		className = Util.toInnerClassName(className);
+		index = lookupClass(className);
+		if (index == -1) {
+			// add the class
+			int class_name_index = addUtf8(className);
+			ensureCapacity();
+			items[count] = new Constant_Class(class_name_index);
+			classes.put(className, new Integer(count));
+			return count++;
+		} else {
+			return index;
+		}
+
+	}
+
+	public int addDouble(double var) {
+		int index = lookupDouble(var);
+		if (index == -1) {
+			ensureCapacity();
+			items[count] = new Constant_Double(var);
+			index = count;
+			count = count + 2;
+		}
+		return index;
+	}
+
+	public int addFieldref(String name, String className, String type) {
+		int class_index, name_and_type_index, index;
+		class_index = addClass(className);
+		name_and_type_index = addFieldNameAndType(name, type);
+		index = lookupMIFref(""F_"" + class_index + ""_"" + name_and_type_index);
+		if (index == -1) {
+			ensureCapacity();
+			items[count] = new Constant_Fieldref(class_index, name_and_type_index);
+			mifRef.put(""F_"" + class_index + ""_"" + name_and_type_index, new Integer(count));
+			index = count;
+			count++;
+		}
+		return index;
+	}
+
+	public int addFloat(float var) {
+		int index = lookupFloat(var);
+		if (index == -1) {
+			ensureCapacity();
+			items[count] = new Constant_Float(var);
+			index = count;
+			count++;
+		}
+		return index;
+	}
+
+	public int addInteger(int var) {
+		int index = lookupInt(var);
+		if (index == -1) {
+			ensureCapacity();
+			items[count] = new Constant_Integer(var);
+			index = count;
+			count++;
+		}
+		return index;
+	}
+
+	public int addInterfaceMethodref(String name, String interfaceName, String retType, String paras) {
+		int class_index, name_and_type_index, index;
+		class_index = addClass(interfaceName);
+		name_and_type_index = addMethodNameAndType(name, retType, paras);
+		index = lookupMIFref(""I_"" + class_index + ""_"" + name_and_type_index);
+		if (index == -1) {
+			ensureCapacity();
+			items[count] = new Constant_InterfaceMethodref(class_index, name_and_type_index);
+			mifRef.put(""I_"" + class_index + ""_"" + name_and_type_index, new Integer(count));
+			index = count;
+			count++;
+		}
+		return index;
+	}
+
+	public int addLong(long var) {
+		int index = lookupLong(var);
+		if (index == -1) {
+			ensureCapacity();
+			items[count] = new Constant_Long(var);
+			index = count;
+			count = count + 2;
+		}
+		return index;
+	}
+
+	public int addMethodref(String name, String className, String retType, String paras) {
+		int class_index, name_and_type_index, index;
+		class_index = addClass(className);
+		name_and_type_index = addMethodNameAndType(name, retType, paras);
+		index = lookupMIFref(""M_"" + class_index + ""_"" + name_and_type_index);
+		if (index == -1) {
+			ensureCapacity();
+			items[count] = new Constant_Methodref(class_index, name_and_type_index);
+			mifRef.put(""M_"" + class_index + ""_"" + name_and_type_index, new Integer(count));
+			index = count;
+			count++;
+		}
+		return index;
+	}
+
+	/*
+	 * lookup existing field, method, interfaceMethod references
+	 * in the format of [X]_[class_index]_[name_and_type_index]
+	 * for method_ref X='M', field_ref X='F', interfaceMethod_ref X='I'
+	 */
+	private int lookupMIFref(String s) {
+		Object obj = mifRef.get(s);
+		if (obj == null) {
+			return -1;
+		} else {
+			return ((Integer) obj).intValue();
+		}
+
+	}
+
+	private int addFieldNameAndType(String name, String type) {
+		int name_index, type_index, index;
+
+		type = Util.toInnerType(type);
+		index = lookupNameAndType(name + "" "" + type);
+		if (index == -1) {
+			name_index = addUtf8(name);
+			type_index = addUtf8(type);
+			ensureCapacity();
+			items[count] = new Constant_NameAndType(name_index, type_index);
+			nameTypes.put(name + "" "" + type, new Integer(count));
+			index = count;
+			count++;
+		}
+		return index;
+	}
+
+	private int addMethodNameAndType(String name, String retType, String paras) {
+		int name_index, type_index, index;
+		String type;
+
+		retType = Util.toInnerType(retType);
+		paras = Util.toInnerParameterTypes(paras);
+		type = ""("" + paras + "")"" + retType;
+		index = lookupNameAndType(name + type);
+		if (index == -1) {
+			name_index = addUtf8(name);
+			type_index = addUtf8(type);
+			ensureCapacity();
+			items[count] = new Constant_NameAndType(name_index, type_index);
+			nameTypes.put(name + type, new Integer(count));
+			index = count;
+			count++;
+		}
+		return index;
+	}
+
+	public int addString(String s) {
+		int ret = lookupString(s);
+		if (ret == -1) {
+			ConstantPoolItem item = new Constant_String(addUtf8(s));
+			ensureCapacity();
+			ret = count;
+			items[count] = item;
+			strings.put(s, new Integer(ret));
+			count ++;
+		}
+		return ret;
+	}
+
+	private int lookupString(String s) {
+		Object obj = strings.get(s);
+		if (obj != null) {
+			return ((Integer) obj).intValue();
+		}
+		return -1;
+	}
+
+	public int addUtf8(String s) {
+		int ret = lookupUtf8(s);
+		if (ret == -1) {
+			ensureCapacity();
+			ConstantPoolItem item = new Constant_Utf8(s);
+			ret = count;
+			items[count++] = item;
+		}
+		return ret;
+	}
+
+	private int lookupUtf8(String s) {
+		ConstantPoolItem item;
+		for (int i = 0; i < count; i++) {
+			item = items[i];
+			if (item != null && item.tag == Constants.CONSTANT_Utf8 && ((Constant_Utf8) item).bytes.equals(s) == true) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private int lookupClass(String className) {
+		Object obj = classes.get(className);
+		if (obj == null) {
+			return -1;
+		} else {
+			return ((Integer) obj).intValue();
+		}
+	}
+
+	private int lookupNameAndType(String nameType) {
+		Object obj = nameTypes.get(nameType);
+		if (obj == null) {
+			return -1;
+		} else {
+			return ((Integer) obj).intValue();
+		}
+
+	}
+
+	private int lookupDouble(double var) {
+		ConstantPoolItem item;
+		for (int i = 0; i < count; i++) {
+			item = items[i];
+			if (item != null && item.tag == Constants.CONSTANT_Double && ((Constant_Double) item).value == var) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private int lookupInt(int var) {
+		ConstantPoolItem item;
+		for (int i = 0; i < count; i++) {
+			item = items[i];
+			if (item != null && item.tag == Constants.CONSTANT_Integer && ((Constant_Integer) item).value == var) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private int lookupFloat(float var) {
+		ConstantPoolItem item;
+		for (int i = 0; i < count; i++) {
+			item = items[i];
+			if (item != null && item.tag == Constants.CONSTANT_Float && ((Constant_Float) item).value == var) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private int lookupLong(long var) {
+		ConstantPoolItem item;
+		for (int i = 0; i < count; i++) {
+			item = items[i];
+			if (item != null && item.tag == Constants.CONSTANT_Long && ((Constant_Long) item).value == var) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private void ensureCapacity() {
+		if (items.length < count + 3) {
+			ConstantPoolItem[] ni = new ConstantPoolItem[items.length + 20];
+			System.arraycopy(items, 0, ni, 0, items.length);
+			items = ni;
+		}
+	}
+
+	public static void main(String[] args) {
+		ConstantPoolGenerator gen = new ConstantPoolGenerator();
+		System.out.println(gen.addString("".""));
+		System.out.println(gen.addString("".""));
+
+	}
+}",True
+com.jasml.compiler.JavaClassDumpper,0,0,0,10,0,96,1,10,3,0,1,243,243,1,1.0,28,12,0,47,0.481481481,1.0,47,4.7,4.7,8,100,1,2639,109,4,48,1,245,233,6694,0,0,0,0,3,0,0,0,3,0,0,2,8,0,0,0,0,10,0,0,0,0,10,9,0,1,1,1,0,1,"/*
+ * Author jyang
+ * Created on 2006-4-12 17:36:22
+ */
+package com.jasml.compiler;
+
+import java.io.*;
+
+import com.jasml.classes.*;
+
+
+public class JavaClassDumpper {
+	DataOutputStream out = null;
+
+	JavaClass clazz = null;
+
+	File destFile = null;
+
+	public JavaClassDumpper(JavaClass clazz, File destFile) {
+		this.destFile = destFile;
+		this.clazz = clazz;
+	}
+
+	public void dump() throws IOException {
+		out = new DataOutputStream(new FileOutputStream(destFile));
+		dumpClassHeader();
+		dumpConstantPool();
+		dumpClassInfo();
+		dumpInterfaces();
+		dumpFields();
+		dumpMethods();
+		dumpClassAttributes();
+		out.close();
+	}
+
+	/**
+	 * dump the magic, minor and major version
+	 * 
+	 * @throws IOException
+	 */
+	private void dumpClassHeader() throws IOException {
+		out.writeInt(clazz.magic);
+		out.writeShort(clazz.minor_version);
+		out.writeShort(clazz.major_version);
+	}
+
+	private void dumpConstantPool() throws IOException {
+		ConstantPool pool = clazz.constantPool;
+		ConstantPoolItem pi = null;
+		int poolCount = pool.getConstantPoolCount();
+		out.writeShort(poolCount);
+		for (int i = 1; i < poolCount; i++) {
+			pi = pool.getConstant(i);
+			out.writeByte(pi.tag);
+			switch (pi.tag) {
+			case Constants.CONSTANT_Utf8:
+				out.writeUTF(((Constant_Utf8) pi).bytes);
+				break;
+			case Constants.CONSTANT_Integer:
+				out.writeInt(((Constant_Integer) pi).value);
+				break;
+			case Constants.CONSTANT_Float:
+				out.writeFloat(((Constant_Float) pi).value);
+				break;
+			case Constants.CONSTANT_Long:
+				out.writeLong(((Constant_Long) pi).value);
+				i++;
+				break;
+			case Constants.CONSTANT_Double:
+				out.writeDouble(((Constant_Double) pi).value);
+				i++;
+				break;
+			case Constants.CONSTANT_Class:
+				out.writeShort(((Constant_Class) pi).name_index);
+				break;
+			case Constants.CONSTANT_Fieldref:
+				out.writeShort(((Constant_Fieldref) pi).class_index);
+				out.writeShort(((Constant_Fieldref) pi).name_and_type_index);
+				break;
+			case Constants.CONSTANT_String:
+				out.writeShort(((Constant_String) pi).string_index);
+				break;
+			case Constants.CONSTANT_Methodref:
+				out.writeShort(((Constant_Methodref) pi).class_index);
+				out.writeShort(((Constant_Methodref) pi).name_and_type_index);
+				break;
+			case Constants.CONSTANT_InterfaceMethodref:
+				out.writeShort(((Constant_InterfaceMethodref) pi).class_index);
+				out.writeShort(((Constant_InterfaceMethodref) pi).name_and_type_index);
+				break;
+			case Constants.CONSTANT_NameAndType:
+				out.writeShort(((Constant_NameAndType) pi).name_index);
+				out.writeShort(((Constant_NameAndType) pi).descriptor_index);
+				break;
+			default: // TODO: throws exceptoin
+				int x = 9 / 0;
+			}
+		}
+	}
+
+	private void dumpClassInfo() throws IOException {
+		out.writeShort(clazz.access_flags);
+		out.writeShort(clazz.this_class);
+		out.writeShort(clazz.super_class);
+	}
+
+	/**
+	 * dump interfaces implemented by this class
+	 * 
+	 * @throws IOException
+	 */
+
+	private void dumpInterfaces() throws IOException {
+		out.writeShort(clazz.interfaces_count);
+		for (int i = 0; i < clazz.interfaces_count; i++) {
+			out.writeShort(clazz.interfaces[i]);
+		}
+	}
+
+	private void dumpFields() throws IOException {
+		Field field = null;
+		out.writeShort(clazz.fields_count);
+		for (int i = 0; i < clazz.fields_count; i++) {
+			field = clazz.fields[i];
+			out.writeShort(field.access_flags);
+			out.writeShort(field.name_index);
+			out.writeShort(field.descriptor_index);
+			out.writeShort(field.attributes_count);
+			for (int j = 0; j < field.attributes_count; j++) {
+				dumpAttribute(field.attributes[j]);
+			}
+		}
+	}
+
+	private void dumpMethods() throws IOException {
+		Method method = null;
+		out.writeShort(clazz.methods_count);
+		for (int i = 0; i < clazz.methods_count; i++) {
+			method = clazz.methods[i];
+			out.writeShort(method.access_flags);
+			out.writeShort(method.name_index);
+			out.writeShort(method.descriptor_index);
+			out.writeShort(method.attributes_count);
+			for (int j = 0; j < method.attributes_count; j++) {
+				dumpAttribute(method.attributes[j]);
+			}
+		}
+	}
+
+	private void dumpClassAttributes() throws IOException {
+		out.writeShort(clazz.attributes_count);
+		for (int i = 0; i < clazz.attributes_count; i++) {
+			dumpAttribute(clazz.attributes[i]);
+		}
+	}
+
+	private void dumpAttribute(Attribute attribute) throws IOException {
+		out.writeShort(attribute.attribute_name_index);
+		out.writeInt(attribute.attribute_length);
+
+		switch (attribute.attribute_tag) {
+		case Constants.ATTRIBUTE_SourceFile:
+			out.writeShort(((Attribute_SourceFile) attribute).sourcefile_index);
+			break;
+
+		case Constants.ATTRIBUTE_ConstantValue:
+			out.writeShort(((Attribute_ConstantValue) attribute).constant_value_index);
+			break;
+
+		case Constants.ATTRIBUTE_Code:
+			Attribute_Code code = (Attribute_Code) attribute;
+			byte[][] operands;
+
+			out.writeShort(code.max_stack);
+			out.writeShort(code.max_locals);
+			out.writeInt(code.code_length);
+			// codes
+			Attribute_Code.Opcode op;
+			for (int i = 0; i < code.codes.length; i++) {
+				op = code.codes[i];
+				out.writeByte(op.opcode);
+
+				operands = op.operands;
+				if (operands != null && operands.length != 0) {
+					for (int j = 0; j < operands.length; j++) {
+						if (operands[j] != null) {
+							out.write(operands[j]);
+						}
+					}
+				}
+			}
+			out.writeShort(code.exception_table_length);
+			// exception table
+			Attribute_Code.ExceptionTableItem exc;
+			for (int i = 0; i < code.exception_table_length; i++) {
+				exc = code.exception_table[i];
+				out.writeShort(exc.start_pc);
+				out.writeShort(exc.end_pc);
+				out.writeShort(exc.handler_pc);
+				out.writeShort(exc.catch_type);
+			}
+
+			// attributes
+			out.writeShort(code.attributes_count);
+			for (int i = 0; i < code.attributes_count; i++) {
+				dumpAttribute(code.attributes[i]);
+			}
+			break;
+		case Constants.ATTRIBUTE_Exceptions:
+			Attribute_Exceptions excep = (Attribute_Exceptions) attribute;
+			out.writeShort(excep.number_of_exceptions);
+			for (int i = 0; i < excep.number_of_exceptions; i++) {
+				out.writeShort(excep.exception_index_table[i]);
+			}
+			break;
+		case Constants.ATTRIBUTE_InnerClasses:
+			Attribute_InnerClasses innerClasses = (Attribute_InnerClasses) attribute;
+			Attribute_InnerClasses.InnerClass cla;
+			out.writeShort(innerClasses.number_of_classes);
+			for (int i = 0; i < innerClasses.number_of_classes; i++) {
+				cla = innerClasses.innerClasses[i];
+				out.writeShort(cla.inner_class_info_index);
+				out.writeShort(cla.outer_class_info_index);
+				out.writeShort(cla.inner_name_index);
+				out.writeShort(cla.inner_class_access_flags);
+			}
+			break;
+
+		case Constants.ATTRIBUTE_Deprecated:
+		case Constants.ATTRIBUTE_Synthetic:
+			// nothing to write
+			break;
+
+		case Constants.ATTRIBUTE_LineNumberTable:
+			// TODO: not supported yet
+			break;
+
+		case Constants.ATTRIBUTE_LocalVariableTable:
+			Attribute_LocalVariableTable lvt = (Attribute_LocalVariableTable) attribute;
+			Attribute_LocalVariableTable.LocalVariable lv;
+			out.writeShort(lvt.local_variable_table_length);
+			for (int i = 0; i < lvt.local_variable_table_length; i++) {
+				lv = lvt.local_variable_table[i];
+				out.writeShort(lv.start_pc);
+				out.writeShort(lv.length);
+				out.writeShort(lv.name_index);
+				out.writeShort(lv.descriptor_index);
+				out.writeShort(lv.index);
+			}
+			break;
+		}
+	}
+
+}",True
+com.jasml.compiler.Scanner,1,8,0,32,0,2,1,24,23,0,1,590,550,2,0.458333333,3,34,0,174,0.7771261,0.578947368,166,5.4375,6.916666667,8,100,1,2639,109,4,48,1,245,233,6694,0,0,22,0,1,1,1,1,22,0,0,19,13,0,0,0,0,32,5,0,0,5,27,20,0,4,2,2,0,2,"/*
+ * Author jyang
+ * Created on 2006-5-8 16:34:48
+ */
+package com.jasml.compiler;
+
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+
+import com.jasml.classes.Constants;
+
+public class Scanner implements Scannable {
+
+	private boolean lineNumberOn = true;
+
+	private boolean columnNumberOn = true;
+
+	private int lineNumber, lineNumberStart;
+
+	private int columnNumber = 0, columnNumberStart = 0;
+
+	char[] buf;
+
+	private int offset, tokenOffset, tokenType, contentLength;
+
+	private int oldColumnNumber;
+
+	private String token;
+
+	private final static char EndChar = (char) 0;
+
+	private int currentLineNumber1, lineNumberStart1, columnNumber1, columnNumberStart1, offset1, tokenOffset1, tokenType1, oldColumnNumber1;
+
+	private String token1;
+
+	/**
+	 * create a scanner using the content of the Scanner passed down.
+	 * the new Scanner will scan from offset, end at offset+length
+	 * @param content
+	 * @param offset
+	 * @param length
+	 * @param columnNumber
+	 * @param lineNumber
+	 * @return
+	 * @throws ParsingException
+	 */
+	public static Scanner partialScanner(char[] content, int offset, int length, int columnNumber, int lineNumber) throws ParsingException {
+		Scanner ret = new Scanner();
+		ret.buf = content;
+		ret.offset = offset;
+		ret.contentLength = offset + length;
+		ret.columnNumber = columnNumber;
+		ret.columnNumberStart = columnNumber;
+		ret.lineNumber = lineNumber;
+		ret.lineNumberStart = lineNumber;
+		return ret;
+	}
+
+	private Scanner() {
+		// for internal use
+	}
+
+	public Scanner(String content) throws ParsingException {
+		contentLength = content.length();
+		buf = new char[contentLength];
+		delComment(buf);
+		content.getChars(0, contentLength, buf, 0);
+		offset = 0;
+	}
+
+	public Scanner(String content, int startingOffset, int length) {
+
+	}
+
+	public Scanner(File file) throws ParsingException {
+		FileReader reader;
+		try {
+			reader = new FileReader(file);
+			char[] bs = new char[(int) file.length()];
+			contentLength = reader.read(bs);
+			buf = new char[contentLength];
+			System.arraycopy(bs, 0, buf, 0, contentLength);
+			offset = 0;
+		} catch (IOException e) {
+			throw new ParsingException(""error.initializing.file"", e);
+		}
+		delComment(buf);
+	}
+
+	public char[] getContent() {
+		return buf;
+	}
+
+	public void mark() {
+		currentLineNumber1 = lineNumber;
+		lineNumberStart1 = lineNumberStart;
+		columnNumber1 = columnNumber;
+		columnNumberStart1 = columnNumberStart;
+		offset1 = offset;
+		tokenOffset1 = tokenOffset;
+		tokenType1 = tokenType;
+		oldColumnNumber1 = oldColumnNumber;
+		token1 = token;
+	}
+
+	public void restore() {
+		lineNumber = currentLineNumber1;
+		lineNumberStart = lineNumberStart1;
+		columnNumber = columnNumber1;
+		columnNumberStart = columnNumberStart1;
+		offset = offset1;
+		tokenOffset = tokenOffset1;
+		tokenType = tokenType1;
+		oldColumnNumber = oldColumnNumber1;
+		token = token1;
+	}
+
+	public void setLineNumberOn(boolean lineNumberOn) {
+		this.lineNumberOn = lineNumberOn;
+	}
+
+	public void setColumnNumberOn(boolean columnNumberOn) {
+		this.columnNumberOn = columnNumberOn;
+	}
+
+	public int nextToken() throws ParsingException {
+		skipSpaces();
+		tokenOffset = offset;
+		columnNumberStart = columnNumber;
+		lineNumberStart = lineNumber;
+		char c = read();
+		if (c == EndChar) {
+			tokenType = EOF;
+			return tokenType;
+		}
+
+		switch (c) {
+		case ':':
+			tokenType = Colon;
+			token = "":"";
+			break;
+		case ',':
+			tokenType = Comma;
+			token = "","";
+			break;
+
+		case '=':
+			tokenType = Equal;
+			token = ""="";
+			break;
+		case ')':
+			tokenType = SBracket_Right;
+			token = "")"";
+			break;
+		case '(':
+			tokenType = SBracket_Left;
+			token = ""("";
+			break;
+		case '{':
+			tokenType = Bracket_Left;
+			token = ""{"";
+			break;
+		case '}':
+			tokenType = Bracket_Right;
+			token = ""}"";
+			break;
+		case '\'': // single quote
+			c = read();
+			if (c == '\\') {
+				// escaped char
+				// TODO, what if this is a /u03d3
+				read();
+			}
+			c = read();
+			if (c != '\'') {
+				exception(this, ""unclosed.char.definition.'''.expected"");
+			}
+			token = new String(buf, tokenOffset, offset - tokenOffset);
+			tokenType = Char;
+			break;
+
+		case '""':
+			while ((c = read()) != EndChar) {
+				if (c == '\\') {
+					// escaping char
+					read();
+				} else if (c == '""') {
+					break;
+				}
+			}
+			if (c != '""') {
+				exception(this, ""unclosed.string.definition.'\""'.expected"");
+			}
+			token = new String(buf, tokenOffset, offset - tokenOffset);
+			tokenType = String;
+			break;
+		case '-':
+			c = read();
+			if (c == '>') {
+				tokenType = Pointer;
+				token = new String(buf, tokenOffset, offset - tokenOffset);
+				break;
+			} else if (c == 'I') {
+				// float POSITIVE_INFINITY = InfinityF or float Negative_INFINITY = -InfinityF is allowed
+				if (read() != 'n' || read() != 'f' || read() != 'i' || read() != 'n' || read() != 'i' || read() != 't' || read() != 'y') {
+					exception(getOffset(), getLineNumberStart(), getColumnNumberStart(), ""\""Infinity\"".expected.here"");
+				}
+				c = Character.toUpperCase(read());
+				if (c == 'D') {
+					tokenType = Number_Double_Negativ_Infinity;
+				} else if (c == 'F') {
+					tokenType = Number_Float_Negativ_Infinity;
+				} else {
+					exception(getOffset(), getLineNumberStart(), getColumnNumberStart(),
+							""invalid.Infinity.definition.InfinityD.or.InfinityF.expected"");
+				}
+				c = read();
+
+				if (Character.isWhitespace(c) == false) {
+					exception(getOffset(), getLineNumberStart(), getColumnNumberStart(),
+							""invalid.Infinity.definition.InfinityD.or.InfinityF.expected"");
+				}
+				unread();
+				token = new String(buf, tokenOffset, offset - tokenOffset);
+				break;
+			} else if (c == '0') {
+				// do not unread, for the next case
+			} else if (Character.isDigit(c) == true) {
+				unread();
+			} else {
+				exception(getOffset(), getLineNumberStart(), getColumnNumberStart(), ""invalid.character.'-'"");
+			}
+		case '0':
+			c = read();
+			if (c == 'x' || c == 'X') {
+				// hex numbers
+				do {
+					c = read();
+					if (c == EndChar) {
+						break;
+					}
+					c = Character.toUpperCase(c);
+				} while (Character.isDigit(c) == true || c == 'A' || c == 'B' || c == 'C' || c == 'D' || c == 'E' || c == 'F');
+				if (c == 'L') {
+					token = new String(buf, tokenOffset, offset - tokenOffset);
+					tokenType = Number_Long;
+				} else if (c != EndChar && Character.isWhitespace(c) == true) {
+					unread();
+					token = new String(buf, tokenOffset, offset - tokenOffset);
+					tokenType = Number_Integer;
+				} else if (Character.isWhitespace(c) == false) {
+					exception(getOffset(), getLineNumberStart(), getColumnNumberStart(), ""invalid.hex.number.format"");
+				}
+				break;
+			} else {
+				unread();
+			}
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
+			/**
+			 * 102E-34d , 
+			 * 124.3e-34f,
+			 * 34.34f
+			 * 123.3e+56f
+			 */
+			consumeDigits();
+			c = read();
+			switch(c){
+			case '.':
+				//decimal point
+				c = read();
+				if(Character.isDigit(c)==false){
+					exception(getOffset(), getLineNumberStart(), getColumnNumberStart(), ""invalid.number.format"");
+				}
+				consumeDigits();
+				c = read();
+				if(c=='e' || c=='E'){
+					
+				}else{
+					break;
+				}
+			case 'e':
+			case 'E':
+				//scientific number
+				c=read();
+				if(c=='+' || c=='-'){
+					c = read();
+					if(Character.isDigit(c)==false){
+						exception(getOffset(), getLineNumberStart(), getColumnNumberStart(), ""invalid.number.format"");
+					}
+					consumeDigits();
+					c = read();
+				}else if(Character.isDigit(c)==true){
+					consumeDigits();
+					c = read();
+				}else{
+					exception(getOffset(), getLineNumberStart(), getColumnNumberStart(), ""invalid.number.format"");
+				}
+			}
+
+			c = Character.toUpperCase(c);
+			if (c == 'L') {
+				token = new String(buf, tokenOffset, offset - tokenOffset);
+				tokenType = Number_Long;
+			} else if (c == 'D') {
+				token = new String(buf, tokenOffset, offset - tokenOffset);
+				tokenType = Number_Double;
+			} else if (c == 'F') {
+				token = new String(buf, tokenOffset, offset - tokenOffset);
+				tokenType = Number_Float;
+			} else {
+				if (c != EndChar)
+					unread();
+				token = new String(buf, tokenOffset, offset - tokenOffset);
+				if (token.indexOf('.') != -1 || token.indexOf('e')!=-1 ||token.indexOf('E')!=-1) {
+					tokenType = Number_Float;
+				} else {
+					tokenType = Number_Integer;
+				}
+			}
+			break;
+		case '[':
+			//attribute definition
+			int level = 1;
+			while (c != EndChar && level != 0) {
+				c = read();
+				if (c == '[') {
+					level++;
+				} else if (c == ']') {
+					level--;
+				}
+			}
+			if (c == EndChar) {
+				exception(getOffset(), getLineNumberStart(), getColumnNumberStart(), ""unclosed.attribute.definition"");
+			} else {
+				token = new String(buf, tokenOffset, offset - tokenOffset);
+				tokenType = Attribute;
+				break;
+			}
+		case '<':
+			//<init>
+			while (c != '>') {
+				c = read();
+			}
+			token = new String(buf, tokenOffset, offset - tokenOffset);
+			tokenType = Defualt;
+			break;
+		default:
+			do {
+				c = read();
+			} while (c != EndChar && isSeparatingChar(c) == false);
+			if (c == '[') {
+				while (c == '[' || c == ']') {
+					// array like int[][]
+					c = read();
+				}
+			} else if (c == '<') {
+				// '<init>'
+				while (c != '>' && c != EndChar) {
+					c = read();
+				}
+				read();
+			}
+			if (c != EndChar) {
+				unread();
+			}
+			token = new String(buf, tokenOffset, offset - tokenOffset);
+			if (isInstruction(token) == true) {
+				tokenType = Instruction;
+			} else if (isAccessFlag(token) == true) {
+				tokenType = AccessFlag;
+			} else if ((tokenType = specialNumberType(token)) != -1) {
+
+			} else if (isValidName(token) == true) {
+				tokenType = JavaName;
+			} else {
+				tokenType = Defualt;
+			}
+		}
+		//				System.out.println(token);
+		return tokenType;
+	}
+
+	/**
+	 * processing speical number types. see Negativ_Infinity Positive_Infinity NaN definitions in Scannable.
+	 * @param s
+	 * @return String
+	 */
+	private int specialNumberType(String s) {
+		if (""InfinityD"".equals(token) == true || ""Infinityd"".equals(token) == true) {
+			return Number_Double_Positive_Infinity;
+		} else if (""InfinityF"".equals(token) == true || ""Infinityf"".equals(token) == true) {
+			return Number_Double_Positive_Infinity;
+		} else if (""NaND"".equals(token) == true || ""NaNd"".equals(token) == true) {
+			return Number_Double_NaN;
+		} else if (""NaNF"".equals(token) == true || ""NaNf"".equals(token) == true) {
+			return Number_Float_NaN;
+		}
+		return -1;
+	}
+
+	private boolean isValidName(String s) {
+		if (s == null || s.length() == 0) {
+			return false;
+		}
+		char c = s.charAt(0);
+		if (Character.isLetter(c) == false) {
+			return false;
+		}
+		for (int i = 1; i < s.length(); i++) {
+			c = s.charAt(i);
+			if (Character.isJavaIdentifierPart(c) == false) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public int getOffset() {
+		return tokenOffset;
+	}
+
+	public int getLength() {
+		return offset - tokenOffset;
+	}
+
+	public int tokenType() {
+		return tokenType;
+	}
+
+	public String token() {
+		return token;
+	}
+
+	public int getLineNumberStart() {
+		return lineNumberStart;
+	}
+
+	public int getLineNumberEnd() {
+		return lineNumber;
+	}
+
+	public int getColumnNumberStart() {
+		return columnNumberStart;
+	}
+
+	public int getColumnNumberEnd() {
+		return columnNumber;
+	}
+
+	private void skipSpaces() {
+		char c = read();
+		while (c != EndChar && Character.isWhitespace(c) == true) {
+			c = read();
+		}
+
+		if (c != EndChar) {
+			unread();
+		}
+	}
+
+	private char read() {
+		if (offset >= contentLength) {
+			return EndChar;
+		} else {
+			char c = buf[offset++];
+			if (lineNumberOn == true && c == '\n') {
+				lineNumber++;
+			}
+			if (columnNumberOn == true) {
+				oldColumnNumber = columnNumber;
+				if (c == '\r' || c == '\n') {
+					columnNumber = 0;
+				} else {
+					columnNumber++;
+				}
+			}
+			return c;
+		}
+	}
+
+	private void consumeDigits() {
+		char c;
+		do {
+			c = read();
+		} while (c != EndChar && Character.isDigit(c) == true);
+		if (c != EndChar) {
+			unread();
+		}
+	}
+
+	private void unread() {
+		offset--;
+		char c = buf[offset];
+		if (lineNumberOn == true && c == '\n') {
+			lineNumber--;
+		}
+		if (columnNumberOn == true) {
+			columnNumber = oldColumnNumber;
+		}
+
+	}
+
+	/**
+	 * delete the single line and multi line comment,  
+	 * if multiline comment is not closed.
+	 *  TODO: this can be merged into read()
+	 * @param cs
+	 */
+	private static void delComment(char[] cs) throws ParsingException {
+		boolean multiLine = false;
+		boolean singleLine = false;
+		boolean inQuote = false;
+		char c;
+		int len = cs.length;
+		int multiLineStarting = 0; // for error reporting
+		for (int i = 0; i < len; i++) {
+			c = cs[i];
+			if (inQuote == true) {
+				if (c == '\\' && i < len - 1) {
+					i++; // escaped chars
+				} else if (c == '""') {
+					inQuote = false;
+				}
+			} else if (c == '""') {
+				inQuote = true;
+			} else if (multiLine == true) {
+				if (c == '*' && i < len - 1 && cs[i + i] == '/') {
+					multiLine = false;
+					cs[i] = ' ';
+					i++;
+				}
+				cs[i] = ' ';
+			} else if (singleLine == true) {
+				if (c == '\n') {
+					singleLine = false;
+				} else {
+					cs[i] = ' ';
+				}
+			} else if (c == '/' && i < len - 1) {
+				if (cs[i + 1] == '*') {
+					multiLineStarting = i;
+					cs[i++] = ' ';
+					cs[i] = ' ';
+					multiLine = true;
+				} else if (cs[i + 1] == '/') {
+					cs[i++] = ' ';
+					cs[i] = ' ';
+					singleLine = true;
+				}
+			}
+		}
+		if (multiLine == true) {
+			exception(multiLineStarting, -1, -1, ""unclosed.multi.line.comment"");
+		}
+	}
+
+	private boolean isSeparatingChar(char c) {
+		return !(Character.isJavaIdentifierPart(c) || c == '.');
+	}
+
+	private boolean isInstruction(String s) {
+		return Constants.OPCODE_NAMESET.contains(s);
+	}
+
+	private boolean isAccessFlag(String s) {
+		return Constants.ACCESS_FLAG_SET.contains(s);
+	}
+
+	private static void exception(Scanner sc, String msg) throws ParsingException {
+		throw new ParsingException(sc.offset, sc.lineNumber, sc.columnNumber, msg);
+	}
+
+	private static void exception(int offset, int line, int column, String msg) throws ParsingException {
+		throw new ParsingException(offset, line, column, msg);
+	}
+
+	public static void main(String[] s) throws Exception {
+		Scanner sc = new Scanner(""234.331 12.3e-334 -334.3e-34 0x33Fe 0334->deas  16   "");
+		while (true) {
+			try {
+				sc.nextToken();			
+			} catch (ParsingException e) {
+
+				return;
+			}
+			System.out.print(sc.tokenType() + "","" + sc.token() + "","" + sc.getOffset() + "","" + sc.getColumnNumberStart() + "",""
+					+ sc.getLineNumberStart() + '\n');
+			if (sc.tokenType() == EOF) {
+				break;
+			}
+		}
+	}
+}",True
+com.jasml.compiler.SourceCodeParser,1,0,2,29,0,106,25,29,4,0,1,1371,1371,51,1.0,27,87,0,328,0.723214286,1.0,328,11.31034483,11.31034483,8,100,1,2639,109,4,48,1,245,233,6694,0,0,1,0,3,0,0,0,4,0,0,4,25,0,0,0,0,29,6,0,0,6,23,27,0,2,4,2,1,3,"package com.jasml.compiler;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Hashtable;
+
+import com.jasml.classes.Attribute;
+import com.jasml.classes.Attribute_Code;
+import com.jasml.classes.Attribute_ConstantValue;
+import com.jasml.classes.Attribute_Deprecated;
+import com.jasml.classes.Attribute_Exceptions;
+import com.jasml.classes.Attribute_InnerClasses;
+import com.jasml.classes.Attribute_LocalVariableTable;
+import com.jasml.classes.Attribute_SourceFile;
+import com.jasml.classes.Attribute_Synthetic;
+import com.jasml.classes.Constants;
+import com.jasml.classes.Field;
+import com.jasml.classes.JavaClass;
+import com.jasml.classes.Method;
+import com.jasml.helper.IntegerArray;
+import com.jasml.helper.OpcodeHelper;
+import com.jasml.helper.OpcodeInfo;
+import com.jasml.helper.Util;
+
+public class SourceCodeParser implements Scannable {
+	private Scanner scanner;
+
+	JavaClass javaClass;
+
+	ConstantPoolGenerator cpl = new ConstantPoolGenerator();
+
+	boolean precompile = false;
+
+	public SourceCodeParser(File file) throws ParsingException {
+		scanner = new Scanner(file);
+	}
+
+	public SourceCodeParser(String content) throws ParsingException {
+		scanner = new Scanner(content);
+	}
+
+	public JavaClass parse() throws ParsingException {
+		javaClass = new JavaClass();
+		cpl = new ConstantPoolGenerator();
+		if (precompile == true) {
+			preprocessConstantValues();
+		}
+		parseClass();
+		return javaClass;
+	}
+
+	private void preprocessConstantValues() throws ParsingException {
+		scanner.mark();
+		String t;
+		while (scanner.nextToken() != EOF) {
+			switch (scanner.tokenType()) {
+			case String:
+				t = scanner.token();
+				cpl.addString(Util.parseViewableString(t.substring(1, t.length() - 1)));
+				break;
+			case Number_Double:
+				t = scanner.token();
+				cpl.addDouble( parseDouble(t ));
+			case Number_Long:
+				t = scanner.token();
+				cpl.addDouble(parseLong(t ));
+				break;
+			}
+		}
+		scanner.restore();
+	}
+
+	private void parseClass() throws ParsingException, GrammerException {
+		scanner.nextToken();
+		if (scanner.tokenType() == Attribute) {
+			parseMajorOrMinor();
+		}
+		parseClassSignature();
+		parseFields();
+		parseMethods();
+		parseClassAttributes();
+		if (scanner.tokenType() != Bracket_Right) {
+			exception(scanner, ""'}'.expected.here"");
+		}
+		if (scanner.nextToken() != EOF) {
+			exception(scanner, ""end.of.class.expected.here"");
+		}
+		javaClass.constantPool = cpl.getConstantPool();
+		javaClass.constant_pool_count = javaClass.constantPool.getConstantPoolCount();
+	}
+
+	private void parseClassSignature() throws ParsingException {
+		// access flags
+		int acc = 0;
+		while (scanner.tokenType() == AccessFlag) {
+			acc = acc | Util.getAccessFlag_Class(scanner.token());
+			scanner.nextToken();
+		}
+		if (acc == 0) {
+			exception(scanner, ""\""class\"".expected.here"");
+		}
+		javaClass.access_flags = (short) acc;
+
+		// class name
+		javaClass.this_class = cpl.addClass(scanner.token());
+		scanner.nextToken();
+
+		//interfaces and super classes
+		while (scanner.tokenType() != Bracket_Left && scanner.tokenType() != EOF) {
+			if (""extends"".equals(scanner.token()) == true) {
+				scanner.nextToken();
+				javaClass.super_class = cpl.addClass(scanner.token());
+				scanner.nextToken();
+			} else if (""implements"".equals(scanner.token()) == true) {
+				scanner.nextToken();
+				IntegerArray array = new IntegerArray(5);
+				while (scanner.tokenType() != Bracket_Left && scanner.tokenType() != EOF) {
+					array.add(cpl.addClass(scanner.token()));
+					scanner.nextToken();
+					if (scanner.tokenType() == Comma) {
+						scanner.nextToken();
+					}
+				}
+				javaClass.interfaces = array.getAll();
+				javaClass.interfaces_count = javaClass.interfaces.length;
+			} else {
+				exception(scanner, ""unexpected.character.here"");
+			}
+		}
+		scanner.nextToken();
+	}
+
+	private void parseFields() throws ParsingException, GrammerException {
+		ArrayList fields = new ArrayList(10);
+		Object field;
+		do {
+			field = parseField();
+			if (field != null) {
+				fields.add(field);
+			}
+		} while (field != null);
+		javaClass.fields = (Field[]) fields.toArray(new Field[fields.size()]);
+		javaClass.fields_count = javaClass.fields.length;
+	}
+
+	private Field parseField() throws ParsingException, GrammerException {
+		if (scanner.tokenType() == Attribute || scanner.tokenType() == Bracket_Right) {
+			return null;
+		}
+		scanner.mark();
+		int acc = 0;
+		while (scanner.tokenType() == AccessFlag) {
+			acc = acc | Util.getAccessFlag_Field(scanner.token());
+			scanner.nextToken();
+		}
+		String fieldType = scanner.token();
+		scanner.nextToken();
+		String fieldName = scanner.token();
+		scanner.nextToken();
+		String maybeEuqal = scanner.token(); // the next char may be a '=', marks the presence of a constant value attribute
+
+		if (fieldType.indexOf('(') != -1 || fieldName.indexOf('(') != -1 || maybeEuqal.indexOf('(') != -1) {
+			// the presence of '(' marks an method declaration
+			scanner.restore();
+			return null;
+		}
+		ArrayList attributes = new ArrayList(3);
+		fieldType = Util.toInnerType(fieldType);
+
+		if (scanner.tokenType() == Equal) {
+			scanner.nextToken();
+			String constValue = scanner.token();
+			int const_index;
+
+			Attribute_ConstantValue con = null;
+			switch (fieldType.charAt(0)) {
+			case 'B':
+			case 'C':
+			case 'I':
+			case 'S':
+			case 'Z':
+				const_index = cpl.addInteger(parseInteger(constValue));
+				con = new Attribute_ConstantValue(2, const_index);
+				break;
+			case 'D':
+				const_index = cpl.addDouble(parseDouble(constValue));
+				con = new Attribute_ConstantValue(2, const_index);
+				break;
+			case 'F':
+				const_index = cpl.addFloat(parseFloat(constValue));
+				con = new Attribute_ConstantValue(2, const_index);
+				break;
+			case 'J':
+				const_index = cpl.addLong(parseLong(constValue));
+				con = new Attribute_ConstantValue(2, const_index);
+				break;
+			case 'L':
+				if (fieldType.equals(""Ljava/lang/String;"") == true) {
+					const_index = cpl.addString(Util.parseViewableString(constValue.substring(1, constValue.length() - 1))); // trim
+					// the
+					// '""'
+					con = new Attribute_ConstantValue(2, const_index);
+					break;
+				}
+			default:
+				exception(scanner, ""can.not.assign.contant.value.to.this.field.type.only.primitive.types.and.string.allowed"");
+			}
+			con.attribute_name_index = cpl.addUtf8(""ConstantValue"");
+			attributes.add(con);
+			scanner.nextToken();
+		}
+		while (scanner.tokenType() == Attribute) {
+			attributes.add(parseAttribute());
+		}
+
+		Field ret = new Field(acc, cpl.addUtf8(fieldName), cpl.addUtf8(fieldType), attributes.size(), (Attribute[]) attributes
+				.toArray(new Attribute[attributes.size()]));
+
+		return ret;
+
+	}
+
+	private void parseMethods() throws ParsingException, GrammerException {
+		ArrayList methods = new ArrayList(10);
+		Object method;
+		do {
+			method = parseMethod();
+			if (method != null) {
+				methods.add(method);
+			}
+		} while (method != null);
+		javaClass.methods = (Method[]) methods.toArray(new Method[methods.size()]);
+		javaClass.methods_count = javaClass.methods.length;
+	}
+
+	private Method parseMethod() throws ParsingException, GrammerException {
+		if (scanner.tokenType() == Attribute || scanner.tokenType() == Bracket_Right || scanner.tokenType() == EOF) {
+			return null;
+		}
+		Method method = new Method(0, 0, 0, 0, new Attribute[0]);
+		LabeledInstructions li;
+
+		ArrayList attributes = new ArrayList(4), codeAttributes;
+		parseMethodSignature(method, attributes);
+		if (Util.hasMethodBody((short) method.access_flags) == true) {
+			codeAttributes = new ArrayList(4);
+			li = parseMethodInstructions(method);
+			Attribute_Code code = new Attribute_Code();
+			code.attribute_name_index = cpl.addUtf8(""Code"");
+			code.codes = li.codes;
+			parseMethodAttributes(method, attributes, li, code, codeAttributes);
+			code.code_length = li.codeLength;
+			code.attributes = (Attribute[]) codeAttributes.toArray(new Attribute[codeAttributes.size()]);
+			code.attributes_count = code.attributes.length;
+			code.attribute_length = 2/*max_stack*/+ 2/*max_locals*/+ 4/*code_length*/+ code.code_length/*code*/+ 2/*exception_table_length*/
+					+ code.exception_table_length * 8 + 2/*attribute_count*/;
+			for (int i = 0; i < code.attributes_count; i++) {
+				code.attribute_length += code.attributes[i].attribute_length + 6;
+			}
+			attributes.add(code);
+		} else {
+			parseMethodAttributes(method, attributes, null, null, null);
+		}
+		scanner.nextToken();
+		method.attributes = (Attribute[]) attributes.toArray(new Attribute[attributes.size()]);
+		method.attributes_count = method.attributes.length;
+		return method;
+	}
+
+	/**
+	 * this method will parse method attribute: Deprecated, Synthetic
+	 * and some of the attributes belongs to code:  Max Locals, Max Stack,Local variale table, Exception table
+	 * 
+	 * @param method
+	 * @param attributes
+	 */
+	private void parseMethodAttributes(Method method, ArrayList attributes, LabeledInstructions li, Attribute_Code code, ArrayList codeAttributes)
+			throws GrammerException, ParsingException {
+		String temp;
+		while (scanner.tokenType() == Attribute) {
+			temp = scanner.token();
+			if (temp.indexOf(Constants.ATTRIBUTE_NAME_LOCAL_VARIABLE) != -1) {
+				codeAttributes.add(parseLocalVariableTable(temp, li.labels));
+				scanner.nextToken();
+			} else if (temp.indexOf(Constants.ATTRIBUTE_NAME_EXCEPTION_TABLE) != -1) {
+				code.exception_table = parseExceptionTable(temp, li.labels);
+				code.exception_table_length = code.exception_table.length;
+				scanner.nextToken();
+			} else if (temp.indexOf(Constants.ATTRIBUTE_NAME_MAX_STACK) != -1) {
+				parseMaxStackOrLocals(code);
+				scanner.nextToken();
+			} else if (temp.indexOf(Constants.ATTRIBUTE_NAME_MAX_LOCAL) != -1) {
+				parseMaxStackOrLocals(code);
+				scanner.nextToken();
+			} else if (temp.indexOf(Constants.ATTRIBUTE_NAME_DEPRECATED) != -1) {
+				attributes.add(parseAttribute());
+			} else if (temp.indexOf(Constants.ATTRIBUTE_NAME_SYNTHETIC) != -1) {
+				attributes.add(parseAttribute());
+			} else if (temp.indexOf(Constants.ATTRIBUTE_NAME_LINE_NUMBER_TABLE) != -1) {
+				scanner.nextToken();
+				if (false) {
+					parseLineNumbers(null);
+				}
+			} else {
+				exception(scanner, ""unexpected.attribute."" + scanner.token());
+			}
+		}
+
+		//		// dose a code attribute must have an local variable attribute? TODO:
+		//		boolean isLocalVariableDefined = false;
+		//		Attribute_LocalVariableTable lv;
+		//		for (int i = 0; i < codeAttributes.size(); i++) {
+		//			if (codeAttributes.get(i) instanceof Attribute_LocalVariableTable) {
+		//				isLocalVariableDefined = true;
+		//				lv = (Attribute_LocalVariableTable) codeAttributes.get(i);
+		//				break;
+		//			}
+		//		}
+		//		if (isLocalVariableDefined == false) {
+		//			lv = new Attribute_LocalVariableTable(2, 0, null);
+		//			lv.attribute_name_index = cpl.addUtf8(""LocalVariableTable"");
+		//			codeAttributes.add(lv);
+		//		}
+	}
+
+	private Attribute parseLineNumbers(String s) {
+		return null;
+	}
+
+	private LabeledInstructions parseMethodInstructions(Method method) throws ParsingException, GrammerException {
+		Hashtable labelMap = new Hashtable();
+		ArrayList toUpdate = new ArrayList();
+		ArrayList codes = new ArrayList(), info;
+		Attribute_Code.Opcode op = null;
+		OpcodeInfo opinfo;
+		String temp, retType, type, label = null;
+		StringBuffer paras = new StringBuffer();
+		int t = 0, i = 0, j = 0, high, low, npairs, counter, tokenType, offset = 0, codeLength = 0;
+
+		byte[][] operands = null;
+		boolean isWide = false, record = false;
+
+		while (scanner.tokenType() != EOF && scanner.tokenType() != Attribute && scanner.tokenType() != Bracket_Right) {
+			switch (scanner.tokenType()) {
+			case JavaName:
+				// label met
+				record = true;
+				label = scanner.token();
+
+				if (scanner.nextToken() != Colon) {
+					exception(scanner, ""expecting.':'.after.label.name"");
+				}
+				if (scanner.nextToken() != Instruction) {
+					exception(scanner, ""expecting.instruction.after.label"");
+				}
+			case Instruction: {
+				opinfo = OpcodeHelper.getOpcodeInfo(scanner.token());
+				switch (opinfo.opcode) {
+				case Constants.TABLESWITCH:
+					// like default=line1, low=1, high=2, jump_table:line32,line34
+					scanner.nextToken();
+					info = new ArrayList();
+					if (scanner.token().equals(""default"") == false) {
+						exception(scanner, ""'default'.expected.here"");
+					}
+					if (scanner.nextToken() != Equal) {
+						exception(scanner, ""'='.expected.here."");
+					}
+					scanner.nextToken();
+					info.add(scanner.token());
+					if (scanner.nextToken() != Comma) {
+						exception(scanner, ""','.expected.here."");
+					}
+					scanner.nextToken();
+					if (scanner.token().equals(""low"") == false) {
+						exception(scanner, ""'low'.expected.here."");
+					}
+					if (scanner.nextToken() != Equal) {
+						exception(scanner, ""'='.expected.here."");
+					}
+					if (scanner.nextToken() != Number_Integer) {
+						exception(scanner, ""number.expected.here."");
+					}
+					low = parseInteger(scanner.token());
+					if (scanner.nextToken() != Comma) {
+						exception(scanner, ""','.expected.here."");
+					}
+					scanner.nextToken();
+					if (scanner.token().equals(""high"") == false) {
+						exception(scanner, ""'high'.expected.here."");
+					}
+					if (scanner.nextToken() != Equal) {
+						exception(scanner, ""'='.expected.here."");
+					}
+					if (scanner.nextToken() != Number_Integer) {
+						exception(scanner, ""number.expected.here."");
+					}
+					high = parseInteger(scanner.token());
+					if (scanner.nextToken() != Comma) {
+						exception(scanner, ""','.expected.here."");
+					}
+					scanner.nextToken();
+					if (scanner.token().equals(""jump_table"") == false) {
+						exception(scanner, ""'jump_table'.expected.here."");
+					}
+					if (scanner.nextToken() != Colon) {
+						exception(scanner, ""':'.expected.here."");
+					}
+					scanner.nextToken();
+					counter = 0;
+					while (scanner.tokenType() != EOF) {
+						if (scanner.tokenType() != JavaName) {
+							exception(scanner, ""label.name.expected.here"");
+						}
+						info.add(scanner.token());
+						if (scanner.nextToken() != Comma) {
+							break;
+						}
+						scanner.nextToken();
+					}
+					operands = new byte[high - low + 5][];
+					operands[0] = new byte[3 - offset % 4];
+					for (i = 0; i < operands[0].length; i++) {
+						operands[0][i] = (byte) 0;
+					}
+
+					operands[2] = Util.getBytes(low, 4);
+					operands[3] = Util.getBytes(high, 4);
+					op = new OpcodeWrapper(offset, opinfo.opcode, operands, info);
+					toUpdate.add(op);
+					codeLength = 1 + operands[0].length + operands.length * 4 - 4;
+					info = null;
+					break;
+				case Constants.LOOKUPSWITCH:
+					// like default=line58, npairs=3, jump_table:-1->line40,200->line46,2100->52					
+					scanner.nextToken();
+					info = new ArrayList();
+					if (scanner.token().equals(""default"") == false) {
+						exception(scanner, ""'default'.expected.here"");
+					}
+					if (scanner.nextToken() != Equal) {
+						exception(scanner, ""'='.expected.here."");
+					}
+					scanner.nextToken();
+					info.add(scanner.token());
+					if (scanner.nextToken() != Comma) {
+						exception(scanner, ""','.expected.here."");
+					}
+					scanner.nextToken();
+					if (scanner.token().equals(""npairs"") == false) {
+						exception(scanner, ""'npairs'.expected.here."");
+					}
+					if (scanner.nextToken() != Equal) {
+						exception(scanner, ""'='.expected.here."");
+					}
+					if (scanner.nextToken() != Number_Integer) {
+						exception(scanner, ""number.expected.here."");
+					}
+					npairs = parseInteger(scanner.token());
+					if (scanner.nextToken() != Comma) {
+						exception(scanner, ""','.expected.here."");
+					}
+					scanner.nextToken();
+					if (scanner.token().equals(""jump_table"") == false) {
+						exception(scanner, ""'jump_table'.expected.here."");
+					}
+					if (scanner.nextToken() != Colon) {
+						exception(scanner, ""':'.expected.here."");
+					}
+					scanner.nextToken();
+
+					operands = new byte[npairs * 2 + 3][];
+					operands[0] = new byte[3 - offset % 4];
+
+					for (i = 0; i < operands[0].length; i++) {
+						operands[0][i] = (byte) 0;
+					}
+					operands[2] = Util.getBytes(npairs, 4);
+					counter = 3;
+					while (scanner.tokenType() != EOF) {
+						if (scanner.tokenType() != Number_Integer) {
+							exception(scanner, ""number.expected.here"");
+						}
+						operands[counter] = Util.getBytes(parseInteger(scanner.token()), 4);
+						counter = counter + 2;
+						if (scanner.nextToken() != Pointer) {
+							exception(scanner, ""->.expected.here"");
+						}
+						scanner.nextToken();
+						info.add(scanner.token());
+						if (scanner.nextToken() != Comma) {
+							break;
+						}
+						scanner.nextToken();
+					}
+					op = new OpcodeWrapper(offset, opinfo.opcode, operands, info);
+					codeLength = 1 + operands[0].length + operands.length * 4 - 4;
+					toUpdate.add(op);
+					info = null;
+					break;
+				case Constants.GETFIELD:
+				case Constants.GETSTATIC:
+				case Constants.PUTFIELD:
+				case Constants.PUTSTATIC:
+					// like : getstatic java.io.PrintStream java.lang.System.out			
+					scanner.nextToken();
+					operands = new byte[1][];
+					type = scanner.token();
+					scanner.nextToken();
+					temp = scanner.token();
+					i = temp.lastIndexOf('.');
+					i = cpl.addFieldref(temp.substring(i + 1), temp.substring(0, i), type);
+					operands[0] = Util.getBytes(i, 2);
+					codeLength = 3;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.INVOKESPECIAL:
+				case Constants.INVOKESTATIC:
+				case Constants.INVOKEVIRTUAL:
+					// like invokespecial void java.lang.Object.<init>()			
+					operands = new byte[1][];
+					scanner.nextToken();
+					retType = scanner.token();
+					scanner.nextToken();
+					temp = scanner.token();
+					i = temp.lastIndexOf('.');
+					if ((scanner.nextToken() == SBracket_Left) == false) {
+						exception(scanner, ""'('.expected.here"");
+					}
+					if (scanner.nextToken() != SBracket_Right) {
+						while (scanner.tokenType() != SBracket_Right && scanner.tokenType() != EOF) {
+							paras.append(scanner.token());
+							if (scanner.nextToken() == Comma) {
+								paras.append(',');
+								scanner.nextToken();
+							}
+						}
+						if (scanner.tokenType() != SBracket_Right) {
+							exception(scanner, ""')'.expected.here"");
+						}
+					} else {
+						paras.append("""");
+					}
+					operands[0] = Util.getBytes(cpl.addMethodref(temp.substring(i + 1), temp.substring(0, i), retType, paras.toString()), 2);
+					paras.delete(0, paras.length());
+					codeLength = 3;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.INVOKEINTERFACE:
+					// like invokeinterface void jce.aa.bb(int,double) 4
+					scanner.nextToken();
+					operands = new byte[3][];
+					retType = scanner.token();
+					scanner.nextToken();
+					temp = scanner.token();
+					i = temp.lastIndexOf('.');
+					if (scanner.nextToken() == SBracket_Left == false) {
+						exception(scanner, ""'('.expected.here"");
+					}
+					if (scanner.nextToken() != SBracket_Right) {
+						while (scanner.tokenType() != SBracket_Right && scanner.tokenType() != EOF) {
+							paras.append(scanner.token());
+							if (scanner.nextToken() == Comma) {
+								paras.append(',');
+								scanner.nextToken();
+							}
+						}
+						if (scanner.tokenType() != SBracket_Right) {
+							exception(scanner, ""')'.expected.here"");
+						}
+					} else {
+						paras.append("""");
+					}
+
+					if (scanner.nextToken() != Number_Integer) {
+						exception(scanner, ""number.expected.here"");
+					}
+					t = parseInteger(scanner.token());
+					operands[0] = Util.getBytes(cpl.addInterfaceMethodref(temp.substring(i + 1), temp.substring(0, i), retType, paras.toString()), 2);
+					operands[1] = Util.getBytes(t, 1);
+					operands[2] = Util.getBytes(0, 1); // this byte is aways 0
+					codeLength = 5;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					paras.delete(0, paras.length());
+					break;
+				/*
+				 * Operands are references to classes in constant pool
+				 */
+				case Constants.NEW:
+				// like: new java.lang.Object
+				case Constants.CHECKCAST:
+				// like: checkcast java.lang.String
+				case Constants.INSTANCEOF:
+					// like: instanceof java.lang.String			
+					scanner.nextToken();
+					operands = new byte[1][];
+					operands[0] = Util.getBytes(cpl.addClass(scanner.token()), 2);
+					codeLength = 3;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.LDC:
+					/*
+					 *  like 4:ldc 1411111 or 4:ldc 1411111f or 4:ldc ""abcde"" 
+					 *  or a special case ldc Infinity, this is to load a Infinity double value
+					 */
+
+					scanner.nextToken();
+					operands = new byte[1][];
+					temp = scanner.token();
+					tokenType = scanner.tokenType();
+					if (tokenType == String) {
+						i = cpl.addString(Util.parseViewableString(temp.substring(1, temp.length() - 1)));
+					} else if (tokenType == Number_Float || tokenType == Number_Float_Positive_Infinity || tokenType == Number_Float_Negativ_Infinity
+							|| tokenType == Number_Float_NaN) {
+						i = cpl.addFloat(parseFloat(temp));
+					} else if (tokenType == Number_Integer) {
+						i = cpl.addInteger(parseInteger(temp));
+					} else {
+						exception(scanner, ""expecting.integer.or.string.or.float.here"");
+					}
+					if (i < 255) {
+						operands[0] = Util.getBytes(i, 1);
+						codeLength = 2;
+						op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					} else {
+						// the index value for LDC is one byte, for those greater than one byte, have to use LDC_W
+						operands[0] = Util.getBytes(i, 2);
+						op = new Attribute_Code.Opcode(offset, Constants.LDC_W, operands);
+						codeLength = 3;
+					}
+					scanner.nextToken();
+					break;
+				case Constants.LDC_W:
+					// the same as LDC, except that it's index value are two bytes
+					scanner.nextToken();
+					operands = new byte[1][];
+					temp = scanner.token();
+					tokenType = scanner.tokenType();
+					if (tokenType == String) {
+						i = cpl.addString(Util.parseViewableString(temp.substring(1, temp.length() - 1)));
+					} else if (tokenType == Number_Float || tokenType == Number_Float_NaN || tokenType == Number_Float_Negativ_Infinity
+							|| tokenType == Number_Float_Positive_Infinity) {
+						i = cpl.addFloat(parseFloat(temp));
+					} else if (tokenType == Number_Integer) {
+						i = cpl.addInteger(parseInteger(temp));
+					} else {
+						exception(scanner, ""expecting.integer.or.string.or.float.here"");
+					}
+					operands[0] = Util.getBytes(i, 2);
+					codeLength = 3;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.LDC2_W:
+					// like ldc2_w 14l, load a long/double value from constant pool
+					scanner.nextToken();
+					operands = new byte[1][];
+					temp = scanner.token();
+					tokenType = scanner.tokenType();
+					if (tokenType == Number_Long) {
+						i = cpl.addLong(parseLong(temp));
+					} else if (tokenType == Number_Double || tokenType == Number_Double_NaN || tokenType == Number_Double_Negativ_Infinity
+							|| tokenType == Number_Double_Positive_Infinity) {
+						i = cpl.addDouble(parseDouble(temp));
+					} else {
+						exception(scanner, ""expecting.long.or.double.here"");
+					}
+					operands[0] = Util.getBytes(i, 2);
+					codeLength = 3;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.NEWARRAY:
+					// 5:newarray int
+					scanner.nextToken();
+					operands = new byte[1][1];
+					operands[0][0] = Util.getPrimitiveTypeCode(scanner.token());
+					codeLength = 2;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.ANEWARRAY:
+					// 9:anewarray java.lang.String
+					scanner.nextToken();
+					operands = new byte[1][];
+					operands[0] = Util.getBytes(cpl.addClass(scanner.token()), 2);
+					codeLength = 3;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.MULTIANEWARRAY:
+					// multianewarray int[][][] 3
+					scanner.nextToken();
+					operands = new byte[2][];
+					type = scanner.token();
+					if (scanner.nextToken() != Number_Integer) {
+						exception(scanner, ""dimesion.number.expected.here"");
+					}
+					i = parseInteger(scanner.token());
+
+					operands[1] = Util.getBytes(i, 1); // dimension					
+					operands[0] = Util.getBytes(cpl.addClass(type), 2);
+					codeLength = 4;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.WIDE:
+					isWide = true;
+					codeLength = 1;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.IINC:
+					// like :iinc t(3) -1  or iinc 3 -1
+					operands = new byte[2][];
+
+					scanner.nextToken();
+					if (scanner.tokenType() == Number_Integer) {
+						i = parseInteger(scanner.token());
+					} else {
+						if (scanner.nextToken() != SBracket_Left) {
+							exception(scanner, ""'('.expected.here"");
+						}
+						if (scanner.nextToken() != Number_Integer) {
+							exception(scanner, ""local.variable.index.expected.here"");
+						}
+						i = parseInteger(scanner.token());
+						if (scanner.nextToken() != SBracket_Right) {
+							exception(scanner, ""')'.expected.here"");
+						}
+					}
+					scanner.nextToken();
+					if (scanner.tokenType() != Number_Integer) {
+						exception(scanner, ""increment.amount.expected.here"");
+					}
+					j = parseInteger(scanner.token());
+					if (isWide == true) {
+						operands[0] = Util.getBytes(i, 2);
+						operands[1] = Util.getBytes(j, 2);
+						codeLength = 5;
+					} else {
+						operands[0] = Util.getBytes(i, 1);
+						operands[1] = Util.getBytes(j, 1);
+						codeLength = 3;
+					}
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.ALOAD:
+				case Constants.ASTORE:
+				case Constants.DLOAD:
+				case Constants.DSTORE:
+				case Constants.FLOAD:
+				case Constants.FSTORE:
+				case Constants.ILOAD:
+				case Constants.ISTORE:
+				case Constants.LLOAD:
+				case Constants.LSTORE:
+				case Constants.RET:
+					// like:istore a(8) or istore 8
+					operands = new byte[1][];
+					scanner.nextToken();
+					if (scanner.tokenType() == Number_Integer) {
+						i = parseInteger(scanner.token());
+					} else {
+						if (scanner.nextToken() != SBracket_Left) {
+							exception(scanner, ""'('.expected.here"");
+						}
+						if (scanner.nextToken() != Number_Integer) {
+							exception(scanner, ""local.variable.index.expected.here"");
+						}
+						i = parseInteger(scanner.token());
+						if (scanner.nextToken() != SBracket_Right) {
+							exception(scanner, ""')'.expected.here"");
+						}
+					}
+					if (isWide == true) {
+						operands[0] = Util.getBytes(i, 2);
+						codeLength = 2;
+						isWide = false;
+					} else {
+						operands[0] = Util.getBytes(i, 1);
+						codeLength = 2;
+					}
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+					scanner.nextToken();
+					break;
+				case Constants.GOTO:
+				case Constants.IFEQ:
+				case Constants.IFGE:
+				case Constants.IFGT:
+				case Constants.IFLE:
+				case Constants.IFLT:
+				case Constants.JSR:
+				case Constants.IFNE:
+				case Constants.IFNONNULL:
+				case Constants.IFNULL:
+				case Constants.IF_ACMPEQ:
+				case Constants.IF_ACMPNE:
+				case Constants.IF_ICMPEQ:
+				case Constants.IF_ICMPGE:
+				case Constants.IF_ICMPGT:
+				case Constants.IF_ICMPLE:
+				case Constants.IF_ICMPLT:
+				case Constants.IF_ICMPNE:
+				case Constants.GOTO_W:
+				case Constants.JSR_W:
+					scanner.nextToken();
+					operands = new byte[1][];
+					codeLength = 3;
+					op = new OpcodeWrapper(offset, opinfo.opcode, operands, scanner.token());
+					toUpdate.add(op);
+					scanner.nextToken();
+					break;
+				case Constants.BIPUSH:
+				default:
+					operands = new byte[opinfo.operandsCount][];
+					for (i = 0; i < opinfo.operandsCount; i++) {
+						if (scanner.nextToken() != Number_Integer) {
+							exception(scanner, ""number.expected.here"");
+						}
+						operands[i] = Util.getBytes(parseInteger(scanner.token()), opinfo.operandsLength[i]);
+						codeLength = codeLength + opinfo.operandsLength[i];
+					}
+					scanner.nextToken();
+					codeLength++;
+					op = new Attribute_Code.Opcode(offset, opinfo.opcode, operands);
+				}
+				break;
+			}
+			case Attribute:
+				break;
+			default:
+				exception(scanner, ""label.name.or.instructions.expected.here"");
+			}
+			offset = offset + codeLength;
+			codes.add(op);
+			if (record) {
+				labelMap.put(label, op);
+				label = null;
+			}
+			record = false;
+			operands = null;
+			codeLength = 0;
+		}
+		updateLabelLinks(labelMap, toUpdate);
+		return new LabeledInstructions((Attribute_Code.Opcode[]) codes.toArray(new Attribute_Code.Opcode[codes.size()]), labelMap, offset);
+	}
+
+	private void updateLabelLinks(Hashtable labels, ArrayList toUpdate) throws GrammerException {
+		OpcodeWrapper op;
+		ArrayList list;
+		String label;
+		int counter;
+		byte[][] operands;
+		for (int i = 0; i < toUpdate.size(); i++) {
+			op = (OpcodeWrapper) toUpdate.get(i);
+			operands = op.operands;
+			switch (op.opcode) {
+			case Constants.TABLESWITCH:
+				list = (ArrayList) op.info;
+				counter = operands.length;
+				operands[1] = Util.getBytes(getOffset((String) list.get(0), labels, false) - op.offset, 4);// default value
+				counter = 1;
+				for (int j = 4; j < operands.length; j++) {
+					operands[j] = Util.getBytes(getOffset((String) list.get(counter++), labels, false) - op.offset, 4);
+				}
+				break;
+			case Constants.LOOKUPSWITCH:
+				list = (ArrayList) op.info;
+				counter = operands.length;
+				operands[1] = Util.getBytes(getOffset((String) list.get(0), labels, false) - op.offset, 4);// default value
+				counter = 1;
+				for (int j = 4; j < operands.length; j++) {
+					operands[j] = Util.getBytes(getOffset((String) list.get(counter++), labels, false) - op.offset, 4);
+					j++;
+				}
+				break;
+			case Constants.GOTO:
+			case Constants.IFEQ:
+			case Constants.IFGE:
+			case Constants.IFGT:
+			case Constants.IFLE:
+			case Constants.IFLT:
+			case Constants.JSR:
+			case Constants.IFNE:
+			case Constants.IFNONNULL:
+			case Constants.IFNULL:
+			case Constants.IF_ACMPEQ:
+			case Constants.IF_ACMPNE:
+			case Constants.IF_ICMPEQ:
+			case Constants.IF_ICMPGE:
+			case Constants.IF_ICMPGT:
+			case Constants.IF_ICMPLE:
+			case Constants.IF_ICMPLT:
+			case Constants.IF_ICMPNE:
+				label = (String) op.info;
+				operands[0] = Util.getBytes(getOffset(label, labels, false) - op.offset, 2);
+				break;
+			case Constants.GOTO_W:
+			case Constants.JSR_W:
+				label = (String) op.info;
+				operands[0] = Util.getBytes(getOffset(label, labels, false) - op.offset, 4);
+				break;
+			}
+		}
+	}
+
+	/**
+	 * parse method declaration, and the throws clause , if any.
+	 * @param method
+	 * @throws ParsingException
+	 */
+	private void parseMethodSignature(Method method, ArrayList attributes) throws ParsingException, GrammerException {
+		int acc = 0;
+		String methodName, retType;
+		StringBuffer para = new StringBuffer(15);
+		while (scanner.tokenType() == AccessFlag) {
+			acc = acc | Util.getAccessFlag_Method(scanner.token());
+			scanner.nextToken();
+		}
+
+		retType = scanner.token();
+		scanner.nextToken();
+		methodName = scanner.token();
+		scanner.nextToken();
+		if (scanner.tokenType() != SBracket_Left) {
+			exception(scanner, ""'('.expected.here"");
+		}
+		scanner.nextToken();
+		if (scanner.tokenType() == SBracket_Right) {
+			//void paras
+			para.append("""");
+		} else {
+			while (scanner.tokenType() != EOF && scanner.tokenType() != SBracket_Right) {
+				para = para.append(scanner.token());
+				if (scanner.nextToken() == Comma) {
+					para.append(',');
+					scanner.nextToken();
+				}
+			}
+			//validate the next token		
+			if (scanner.tokenType() != SBracket_Right) {
+				throw new ParsingException(scanner.getOffset(), ""')'.expected.here"");
+			}
+		}
+		retType = Util.toInnerType(retType);
+		method.descriptor_index = cpl.addUtf8(""("" + Util.toInnerParameterTypes(para.toString()) + "")"" + retType);
+		method.name_index = cpl.addUtf8(methodName);
+		method.access_flags = acc;
+		scanner.nextToken();
+		// throws clause, if any	 
+		if (""throws"".equals(scanner.token()) == true) {
+			IntegerArray thr = new IntegerArray(4);
+			while (scanner.tokenType() != Bracket_Left && scanner.tokenType() != EOF) {
+				scanner.nextToken();
+				thr.add(cpl.addClass(scanner.token()));
+				scanner.nextToken();
+				if (scanner.tokenType() != Bracket_Left && scanner.tokenType() != Comma) {
+					exception(scanner, ""invalid.throw.clause"");
+				}
+			}
+			Attribute att = new Attribute_Exceptions(2 + 2 * thr.getAll().length, thr.getAll().length, thr.getAll());
+			att.attribute_name_index = cpl.addUtf8(""Exceptions"");
+			attributes.add(att);
+		} else if (scanner.tokenType() == Bracket_Left) {
+
+		} else {
+			exception(scanner, ""'{'.expected.here"");
+		}
+		scanner.nextToken();
+	}
+
+	/**
+	 * like:jce.TestClass this  start=line0, end=line0, index=0
+	 * @param s
+	 * @param map
+	 * @throws ParsingException
+	 * @throws GrammerException
+	 */
+	private Attribute_LocalVariableTable parseLocalVariableTable(String s, Hashtable map) throws ParsingException, GrammerException {
+		Scanner sc;
+		sc = Scanner.partialScanner(scanner.getContent(), scanner.getOffset() + 1, scanner.getLength() - 2, scanner.getColumnNumberStart() + 1,
+				scanner.getLineNumberStart());
+		ArrayList lvts = new ArrayList();
+		String type, name, index;
+		int start, end;
+		sc.nextToken();
+		if (sc.nextToken() != Colon) {
+			exception(sc, ""':'.expected"");
+		}
+		sc.nextToken();
+		while (sc.tokenType() != EOF) {
+			type = sc.token();
+			sc.nextToken();
+			name = sc.token();
+			sc.nextToken();
+			if (""start"".equals(sc.token()) == false) {
+				exception(sc, ""'start'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+			sc.nextToken();
+			start = getOffset(sc.token(), map, false);
+			if (sc.nextToken() != Comma) {
+				exception(sc, ""','.expected.here"");
+			}
+			sc.nextToken();
+			if (""end"".equals(sc.token()) == false) {
+				exception(sc, ""'end'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+			sc.nextToken();
+			end = getOffset(sc.token(), map, true);
+			if (sc.nextToken() != Comma) {
+				exception(sc, ""','.expected.here"");
+			}
+			sc.nextToken();
+			if (""index"".equals(sc.token()) == false) {
+				exception(sc, ""'index'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+			if (sc.nextToken() != Number_Integer) {
+				exception(sc, ""local.variable.index.expected.here"");
+			}
+			index = sc.token();
+			lvts.add(new Attribute_LocalVariableTable.LocalVariable(start, end - start, cpl.addUtf8(name), cpl.addUtf8(Util.toInnerType(type)),
+					parseInteger(index)));
+			sc.nextToken();
+		}
+		Attribute_LocalVariableTable.LocalVariable[] lvs = (Attribute_LocalVariableTable.LocalVariable[]) lvts
+				.toArray(new Attribute_LocalVariableTable.LocalVariable[lvts.size()]);
+		Attribute_LocalVariableTable lvt = new Attribute_LocalVariableTable(10 * lvs.length + 2, lvs.length, lvs);
+		lvt.attribute_name_index = cpl.addUtf8(""LocalVariableTable"");
+		return lvt;
+	}
+
+	/**
+	 * like :
+	 * [Exception Table:
+	 * start=line73 , end=line78 , handler=line78 , catch_type=java.lang.Exception]
+	 * @param s
+	 * @param map
+	 * @return
+	 * @throws ParsingException
+	 * @throws GrammerException
+	 * TODO: error reporting missing labels
+	 */
+	private Attribute_Code.ExceptionTableItem[] parseExceptionTable(String s, Hashtable map) throws ParsingException, GrammerException {
+		Scanner sc;
+		sc = Scanner.partialScanner(scanner.getContent(), scanner.getOffset() + 1, scanner.getLength() - 2, scanner.getColumnNumberStart() + 1,
+				scanner.getLineNumberStart());
+		ArrayList excs = new ArrayList();
+		int start, end, handler, catch_type;
+		sc.nextToken();
+
+		if (sc.nextToken() != Colon) {
+			exception(sc, ""':'.expected"");
+		}
+		sc.nextToken();
+		while (sc.tokenType() != EOF) {
+			if (""start"".equals(sc.token()) == false) {
+				exception(sc, ""'start'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(scanner, ""'='.expected.here"");
+			}
+			sc.nextToken();
+			start = getOffset(sc.token(), map, false);
+			if (sc.nextToken() != Comma) {
+				exception(sc, ""','.expected.here"");
+			}
+			sc.nextToken();
+			if (""end"".equals(sc.token()) == false) {
+				exception(sc, ""'end'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+			sc.nextToken();
+			end = getOffset(sc.token(), map, false);
+			if (sc.nextToken() != Comma) {
+				exception(sc, ""','.expected.here"");
+			}
+			sc.nextToken();
+			if (""handler"".equals(sc.token()) == false) {
+				exception(sc, ""'handler'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+			sc.nextToken();
+			handler = getOffset(sc.token(), map, false);
+			if (sc.nextToken() != Comma) {
+				exception(sc, ""','.expected.here"");
+			}
+			sc.nextToken();
+			if (""catch_type"".equals(sc.token()) == false) {
+				exception(sc, ""'catch_type'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+			sc.nextToken();
+			if (""0"".equals(sc.token())) {
+				catch_type = 0;
+			} else {
+				catch_type = cpl.addClass(sc.token());
+			}
+			excs.add(new Attribute_Code.ExceptionTableItem(start, end, handler, catch_type));
+			sc.nextToken();
+		}
+		return (Attribute_Code.ExceptionTableItem[]) excs.toArray(new Attribute_Code.ExceptionTableItem[excs.size()]);
+	}
+
+	/**
+	 * 
+	 * @param label
+	 * @param map
+	 * @param countingInstructionLength if false, will return the starting offset of this insctruction.
+	 *  else will return the end offset of this instruction 
+	 * @return
+	 */
+	private int getOffset(String label, Hashtable map, boolean countingInstructionLength) throws GrammerException {
+		Attribute_Code.Opcode op = (Attribute_Code.Opcode) map.get(label);
+		if (op == null) {
+			return -1;
+		}
+		if (countingInstructionLength == false) {
+			return op.offset;
+		} else {
+			return op.offset + Constants.NO_OF_OPERANDS[op.opcode & 0xFF] + 1;
+		}
+	}
+
+	private Attribute parseAttribute() throws GrammerException, ParsingException {
+		String s = scanner.token();
+		Attribute att;
+		if (s.indexOf(Constants.ATTRIBUTE_NAME_DEPRECATED) != -1) {
+			att = new Attribute_Deprecated();
+			att.attribute_name_index = cpl.addUtf8(""Deprecated"");
+			scanner.nextToken();
+			return att;
+		} else if (s.indexOf(Constants.ATTRIBUTE_NAME_SYNTHETIC) != -1) {
+			att = new Attribute_Synthetic();
+			att.attribute_name_index = cpl.addUtf8(""Synthetic"");
+			scanner.nextToken();
+			return att;
+		} else if (s.indexOf(Constants.ATTRIBUTE_NAME_SOURCE_FILE) != -1) {
+			att = new Attribute_SourceFile(2, cpl.addUtf8(s.substring(s.lastIndexOf(':') + 1, s.length() - 1).trim()));
+			att.attribute_name_index = cpl.addUtf8(""SourceFile"");
+			scanner.nextToken();
+			return att;
+		} else {
+			exception(scanner, ""can.not.process.attribute"");
+		}
+		return null;
+
+	}
+
+	/**
+	 * like :
+	 * [Inner Classes :
+	 * access = final class , name = 0 , fullname = jce.TestClass$1 , outername = 0]
+	 * @param s
+	 * @return
+	 */
+	private Attribute_InnerClasses parseInnerClasses() throws ParsingException, GrammerException {
+		Scanner sc;//
+		sc = Scanner.partialScanner(scanner.getContent(), scanner.getOffset() + 1, scanner.getLength() - 2, scanner.getColumnNumberStart() + 1,
+				scanner.getLineNumberStart());
+		ArrayList ins = new ArrayList();
+		int access_flag = 0, inner_name_index, inner_class_info, outer_class_info;
+		sc.nextToken();
+		if (sc.nextToken() != Colon) {
+			exception(sc, ""':'.expected"");
+		}
+		sc.nextToken();
+		while (sc.tokenType() != EOF) {
+			if (""access"".equals(sc.token()) == false) {
+				exception(sc, ""'access'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+
+			while (sc.nextToken() == AccessFlag) {
+				access_flag = Util.getAccessFlag_Class(sc.token()) | access_flag;
+			}
+			if (sc.tokenType() != Comma) {
+				exception(sc, ""','.expected.here"");
+			}
+
+			sc.nextToken();
+			if (""name"".equals(sc.token()) == false) {
+				exception(sc, ""'name'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+			sc.nextToken();
+
+			if (""0"".equals(sc.token()) == true) {
+				inner_name_index = 0;
+			} else {
+				inner_name_index = cpl.addUtf8(sc.token());
+			}
+
+			if (sc.nextToken() != Comma) {
+				exception(sc, ""','.expected.here"");
+			}
+			sc.nextToken();
+			if (""fullname"".equals(sc.token()) == false) {
+				exception(sc, ""'fullname'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+			sc.nextToken();
+			inner_class_info = cpl.addClass(sc.token());
+			if (sc.nextToken() != Comma) {
+				exception(sc, ""','.expected.here"");
+			}
+			sc.nextToken();
+			if (""outername"".equals(sc.token()) == false) {
+				exception(sc, ""'outername'.expected.here"");
+			}
+			if (sc.nextToken() != Equal) {
+				exception(sc, ""'='.expected.here"");
+			}
+			sc.nextToken();
+			if (""0"".equals(sc.token())) {
+				outer_class_info = 0;
+			} else {
+				outer_class_info = cpl.addClass(sc.token());
+			}
+			sc.nextToken();
+			ins.add(new Attribute_InnerClasses.InnerClass(inner_class_info, outer_class_info, inner_name_index, access_flag));
+		}
+
+		Attribute_InnerClasses ret = new Attribute_InnerClasses(8 * ins.size() + 2, ins.size(), (Attribute_InnerClasses.InnerClass[]) ins
+				.toArray(new Attribute_InnerClasses.InnerClass[ins.size()]));
+		ret.attribute_name_index = cpl.addUtf8(""InnerClasses"");
+		return ret;
+
+	}
+
+	private void parseClassAttributes() throws GrammerException, ParsingException {
+		String s;
+		ArrayList attributes = new ArrayList(4);
+		int colonIndex , nameIndex;
+		while (scanner.tokenType() == Attribute) {
+			s = scanner.token();
+			colonIndex = s.indexOf(':');
+			nameIndex = s.indexOf(Constants.ATTRIBUTE_NAME_INNER_CLASSES);			
+			if (nameIndex!=-1 && nameIndex<colonIndex) {
+				// this is necessary, or  [SourceFile : Attribute_InnerClasses.java] will be parsed as innerclass
+				attributes.add(parseInnerClasses());
+				scanner.nextToken();
+			} else {
+				attributes.add(parseAttribute());
+			}
+		}
+		javaClass.attributes = (Attribute[]) attributes.toArray(new Attribute[attributes.size()]);
+		javaClass.attributes_count = attributes.size();
+	}
+
+	private void parseMaxStackOrLocals(Attribute_Code code) throws ParsingException {
+		Scanner sc = Scanner.partialScanner(scanner.getContent(), scanner.getOffset() + 1, scanner.getLength() - 2,
+				scanner.getColumnNumberStart() + 1, scanner.getLineNumberStart());
+		sc.nextToken();
+		if (sc.token().equals(Constants.ATTRIBUTE_NAME_MAX_STACK) == true) {
+			if (sc.nextToken() != Colon) {
+				exception(sc, ""':'.expected.here"");
+			}
+			if (sc.nextToken() != Number_Integer) {
+				exception(sc, ""invalid.max.stack.value"");
+			}
+			code.max_stack = parseInteger(sc.token());
+
+		} else if (sc.token().equals(Constants.ATTRIBUTE_NAME_MAX_LOCAL) == true) {
+			if (sc.nextToken() != Colon) {
+				exception(sc, ""':'.expected.here"");
+			}
+			if (sc.nextToken() != Number_Integer) {
+				exception(sc, ""invalid.max.local.value"");
+			}
+			code.max_locals = parseInteger(sc.token());
+		}
+	}
+
+	private void parseMajorOrMinor() throws GrammerException, ParsingException {
+		String s;
+		while (scanner.tokenType() == Attribute) {
+			s = scanner.token();
+
+			if (s.indexOf(Constants.ATTRIBUTE_NAME_MAJOR_VERSION) != -1) {
+				try {
+					javaClass.major_version = parseInteger(s.substring(s.indexOf(':') + 1, s.lastIndexOf(']')).trim());
+				} catch (NumberFormatException ne) {
+					exception(scanner, ""invalid.major.version.definition"");
+				}
+			} else if (s.indexOf(Constants.ATTRIBUTE_NAME_MINOR_VERSION) != -1) {
+				try {
+					javaClass.minor_version = parseInteger(s.substring(s.indexOf(':') + 1, s.lastIndexOf(']')).trim());
+				} catch (NumberFormatException ne) {
+					exception(scanner, ""invalid.minor.version.definition"");
+				}
+			} else {
+				exception(scanner, ""unexpected.attribute.here"");
+			}
+			scanner.nextToken();
+		}
+	}
+
+	private static int parseInteger(String s) {
+		if (s.startsWith(""0x"") || s.startsWith(""0X"")) {
+			return Integer.parseInt(s.substring(2), 16);
+		} else {
+			return Integer.parseInt(s);
+		}
+	}
+
+	private static long parseLong(String s) {
+		if (s.endsWith(""l"") || s.endsWith(""L"")) {
+			s = s.substring(0, s.length() - 1);
+		}
+		if (s.startsWith(""0x"") || s.startsWith(""0X"")) {
+			return Long.parseLong(s.substring(2), 16);
+		} else {
+			return Long.parseLong(s);
+		}
+	}
+
+	private static float parseFloat(String s) {
+		if (s.endsWith(""f"") || s.endsWith(""F"")) {
+			s = s.substring(0, s.length() - 1);
+		}
+		return Float.parseFloat(s);
+	}
+
+	private static double parseDouble(String s) {
+		if (s.endsWith(""d"") || s.endsWith(""D"")) {
+			s = s.substring(0, s.length() - 1);
+		}
+		return Double.parseDouble(s);
+	}
+
+	private static void exception(Scanner sc, String msg) throws ParsingException {
+		throw new GrammerException(sc.getOffset(), sc.getLineNumberStart(), sc.getColumnNumberStart(), msg);
+	}
+
+	private static class OpcodeWrapper extends Attribute_Code.Opcode {
+		public Object info = null;
+
+		public OpcodeWrapper(Attribute_Code.Opcode op) {
+			super.offset = op.offset;
+			super.opcode = op.opcode;
+			super.operands = op.operands;
+		}
+
+		public OpcodeWrapper(int offset, byte opcode, byte[][] operands, Object info) {
+			super(offset, opcode, operands);
+			this.info = info;
+		}
+	}
+
+	private class LabeledInstructions {
+		Attribute_Code.Opcode[] codes;
+
+		Hashtable labels;
+
+		int codeLength;
+
+		public LabeledInstructions(Attribute_Code.Opcode[] codes, Hashtable labels, int code_length) {
+			this.codes = codes;
+			this.labels = labels;
+			this.codeLength = code_length;
+		}
+	}
+
+	public static void main(String[] args) throws Exception {
+		SourceCodeParser pa = new SourceCodeParser(""e:\\work\\TestClass.jc"");
+		pa.parse();
+	}
+}
+",True
+com.jasml.decompiler.JavaClassParser,0,0,0,21,0,44,31,21,17,0,1,569,569,32,1.0,35,53,0,91,0.911764706,1.0,91,4.333333333,4.333333333,3,54,0,1422,54,4,48,1,245,233,6694,0,0,0,0,17,0,0,0,17,0,0,1,20,0,0,0,0,21,1,0,0,1,20,21,0,0,89,21,34,55,"/*
+ * Author jyang Created on 2006-4-2 21:18:16
+ */
+package com.jasml.decompiler;
+
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+
+import com.jasml.classes.Attribute;
+import com.jasml.classes.Attribute_Code;
+import com.jasml.classes.Attribute_ConstantValue;
+import com.jasml.classes.Attribute_Deprecated;
+import com.jasml.classes.Attribute_Exceptions;
+import com.jasml.classes.Attribute_InnerClasses;
+import com.jasml.classes.Attribute_LineNumberTable;
+import com.jasml.classes.Attribute_LocalVariableTable;
+import com.jasml.classes.Attribute_SourceFile;
+import com.jasml.classes.Attribute_Synthetic;
+import com.jasml.classes.ConstantPool;
+import com.jasml.classes.ConstantPoolItem;
+import com.jasml.classes.Constant_Class;
+import com.jasml.classes.Constant_Double;
+import com.jasml.classes.Constant_Fieldref;
+import com.jasml.classes.Constant_Float;
+import com.jasml.classes.Constant_Integer;
+import com.jasml.classes.Constant_InterfaceMethodref;
+import com.jasml.classes.Constant_Long;
+import com.jasml.classes.Constant_Methodref;
+import com.jasml.classes.Constant_NameAndType;
+import com.jasml.classes.Constant_String;
+import com.jasml.classes.Constant_Utf8;
+import com.jasml.classes.Constants;
+import com.jasml.classes.Field;
+import com.jasml.classes.JavaClass;
+import com.jasml.classes.Method;
+import com.jasml.helper.OpcodeHelper;
+import com.jasml.helper.OpcodeInfo;
+import com.jasml.helper.Util;
+
+
+public class JavaClassParser {
+
+	DataInputStream in;
+
+	int magic;
+
+	int minor_Version;
+
+	int major_Version;
+
+	short constant_Pool_Count;
+
+	ConstantPool constantPool;
+
+	short access_flags;
+
+	int this_class;
+
+	int super_class;
+
+	int interfaces_count;
+
+	// the array storing interface indexes into constant pool
+	int[] interfaces;
+
+	int fields_count;
+
+	Field[] fields;
+
+	int methods_count;
+
+	Method[] methods;
+
+	int attributes_count;
+
+	Attribute[] attributes;
+
+	public JavaClass parseClass(File classFile) throws IOException {
+		JavaClass ret = null;
+		try {
+			FileInputStream fsin = new FileInputStream(classFile);
+			in = new DataInputStream(fsin);
+
+			readMagic();
+			readVersion();
+			readConstant_Pool_Count();
+			readConstantPool();
+			// prt(constantPool); // 
+			readAccess_flags();
+			readThis_class();
+			readSuper_class();
+			readInterfaces();
+			readFields();
+			readMethods();
+			readAttributes();
+
+			ret = new JavaClass();
+			ret.magic = magic;
+			ret.minor_version = minor_Version;
+			ret.major_version = major_Version;
+			ret.constant_pool_count = constant_Pool_Count;
+			ret.constantPool = constantPool;
+			ret.access_flags = access_flags;
+			ret.this_class = this_class;
+			ret.super_class = super_class;
+			ret.interfaces_count = interfaces_count;
+			ret.interfaces = interfaces;
+			ret.fields_count = fields_count;
+			ret.fields = fields;
+			ret.methods_count = methods_count;
+			ret.methods = methods;
+			ret.attributes_count = attributes_count;
+			ret.attributes = attributes;
+		} finally {
+			try {
+				in.close();
+			} catch (Exception e) {
+
+			}
+		}
+		return ret;
+	}
+
+	private void readMagic() throws IOException {
+		prt(""#magic"");
+		magic = in.readInt();
+	}
+
+	private void readVersion() throws IOException {
+		prt(""#version"");
+		minor_Version = in.readUnsignedShort();
+		major_Version = in.readUnsignedShort();
+	}
+
+	private void readConstant_Pool_Count() throws IOException {
+		prt(""#constant pool"");
+		constant_Pool_Count = (short) in.readUnsignedShort();
+	}
+
+	private void readConstantPool() throws IOException {
+		ConstantPoolItem[] items = new ConstantPoolItem[constant_Pool_Count];
+		byte tag;
+		for (int i = 1; i < constant_Pool_Count; i++) {
+			tag = in.readByte();
+
+			switch (tag) {
+			case Constants.CONSTANT_Class:
+				items[i] = new Constant_Class(in.readUnsignedShort());
+				break;
+			case Constants.CONSTANT_Fieldref:
+				items[i] = new Constant_Fieldref(in.readUnsignedShort(), in.readUnsignedShort());
+				break;
+			case Constants.CONSTANT_Methodref:
+				items[i] = new Constant_Methodref(in.readUnsignedShort(), in.readUnsignedShort());
+				break;
+			case Constants.CONSTANT_InterfaceMethodref:
+				items[i] = new Constant_InterfaceMethodref(in.readUnsignedShort(), in.readUnsignedShort());
+				break;
+			case Constants.CONSTANT_String:
+				items[i] = new Constant_String(in.readUnsignedShort());
+				break;
+			case Constants.CONSTANT_Integer:
+				items[i] = new Constant_Integer(in.readInt());
+				break;
+			case Constants.CONSTANT_Float:
+				items[i] = new Constant_Float(in.readFloat());
+				break;
+			case Constants.CONSTANT_Long:
+				items[i] = new Constant_Long(in.readLong());
+				i++;
+				break;
+			case Constants.CONSTANT_Double:
+				items[i] = new Constant_Double(in.readDouble());
+				i++;
+				break;
+			case Constants.CONSTANT_NameAndType:
+				items[i] = new Constant_NameAndType(in.readUnsignedShort(), in.readUnsignedShort());
+				break;
+			case Constants.CONSTANT_Utf8:
+				items[i] = new Constant_Utf8(in.readUTF());
+				break;
+			default:
+				throw new IOException(""Error inputing class file, unexpected tag:"" + tag + "". i = "" + i);
+			}
+		}
+		constantPool = new ConstantPool(items);
+	}
+
+	private void readAccess_flags() throws IOException {
+		access_flags = (short) in.readUnsignedShort();	
+	}
+
+	private void readThis_class() throws IOException {
+		this_class = in.readUnsignedShort();
+	}
+
+	private void readSuper_class() throws IOException {
+		super_class = in.readUnsignedShort();
+	}
+
+	private void readInterfaces() throws IOException {
+		prt(""#interfaces"");
+		interfaces_count = in.readUnsignedShort();
+		if (interfaces_count != 0) {
+			interfaces = new int[interfaces_count];
+			for (int i = 0; i < interfaces_count; i++) {
+				interfaces[i] = in.readUnsignedShort();
+			}
+		}
+	}
+
+	private void readFields() throws IOException {
+		prt(""#fields"");
+		fields_count = in.readUnsignedShort();
+		if (fields_count != 0) {
+			fields = new Field[fields_count];
+			for (int i = 0; i < fields_count; i++) {
+				prt(""#field :"" + i);
+				fields[i] = readField(in);
+			}
+		}
+	}
+
+	private void readMethods() throws IOException {
+		prt(""#methods"");
+		methods_count = in.readUnsignedShort();
+		if (methods_count != 0) {
+			methods = new Method[methods_count];
+			for (int i = 0; i < methods_count; i++) {
+				methods[i] = readMethod(in);
+			}
+		}
+	}
+
+	private void readAttributes() throws IOException {
+		prt(""#class attributes"");
+		attributes_count = in.readUnsignedShort();
+		if (attributes_count != 0) {
+			attributes = new Attribute[attributes_count];
+			for (int i = 0; i < attributes_count; i++) {
+				prt(""#class attribute :"" + i);
+				attributes[i] = readAttribute(in);
+			}
+		}
+	}
+
+	private Field readField(DataInputStream in) throws IOException {
+		int access_flags = in.readUnsignedShort();
+		int name_index = in.readUnsignedShort();
+		int descriptor_index = in.readUnsignedShort();
+		int attributes_count = in.readUnsignedShort();
+		Attribute[] attributes = null;
+		if (attributes_count != 0) {
+			attributes = new Attribute[attributes_count];
+
+			for (int i = 0; i < attributes_count; i++) {
+				attributes[i] = readAttribute(in);
+			}
+		}
+		return new Field(access_flags, name_index, descriptor_index, attributes_count, attributes);
+	}
+
+	private Method readMethod(DataInputStream in) throws IOException {
+		int access_flags = in.readUnsignedShort();
+		int name_index = in.readUnsignedShort();
+		int descriptor_index = in.readUnsignedShort();
+		int attributes_count = in.readUnsignedShort();
+		prt(""#method :"" + constantPool.getConstant(name_index));
+		Attribute[] attributes = null;
+		if (attributes_count != 0) {
+			attributes = new Attribute[attributes_count];
+
+			for (int i = 0; i < attributes_count; i++) {
+				attributes[i] = readAttribute(in);
+			}
+		}
+		return new Method(access_flags, name_index, descriptor_index, attributes_count, attributes);
+
+	}
+
+	private Attribute readAttribute(DataInputStream in) throws IOException {
+		prt(""#Attribute"");
+		Attribute attribute = null;
+		int attribute_name_index = in.readUnsignedShort();
+		int attribute_length = in.readInt();
+		String attribute_name = ((Constant_Utf8) constantPool.getConstant(attribute_name_index)).bytes;
+		int i = 0;
+
+		// get the attribute names
+		for (; i < Constants.ATTRIBUTE_NAMES.length; i++) {
+			if (attribute_name.equals(Constants.ATTRIBUTE_NAMES[i]) == true) {
+				break;
+			}
+		}
+
+		if (i != Constants.ATTRIBUTE_NAMES.length) {
+			// known attribute
+			switch (i) {
+			case Constants.ATTRIBUTE_SourceFile:
+				attribute = new Attribute_SourceFile(attribute_length, in.readUnsignedShort());
+				break;
+			case Constants.ATTRIBUTE_ConstantValue:
+				attribute = new Attribute_ConstantValue(attribute_length, in.readUnsignedShort());
+				break;
+			case Constants.ATTRIBUTE_Code:
+				int max_stack = in.readUnsignedShort();
+				int max_locals = in.readUnsignedShort();
+				int code_length = in.readInt();
+				Attribute_Code.Opcode[] codes = null;
+				if (code_length != 0) {
+					byte[] bcode = new byte[code_length];
+					in.read(bcode);
+					codes = parseOpcodes(bcode);
+				}
+				int exception_table_length = in.readUnsignedShort();
+				Attribute_Code.ExceptionTableItem[] exceptionTable = null;
+				if (exception_table_length != 0) {
+					exceptionTable = new Attribute_Code.ExceptionTableItem[exception_table_length];
+					for (int counter = 0; counter < exception_table_length; counter++) {
+						exceptionTable[counter] = readExceptionTableItem(in);
+					}
+				}
+
+				int attributes_count = in.readUnsignedShort();
+				Attribute[] attributes = null;
+				if (attributes_count != 0) {
+					attributes = new Attribute[attributes_count];
+					for (int counter = 0; counter < attributes_count; counter++) {
+						attributes[counter] = readAttribute(in);
+					}
+				}
+				attribute = new Attribute_Code(attribute_length, max_stack, max_locals, code_length, codes, exception_table_length, exceptionTable,
+						attributes_count, attributes);
+				break;
+
+			case Constants.ATTRIBUTE_Exceptions:
+				int number_of_exceptions = in.readUnsignedShort();
+				int[] exception_index_table = null;
+				if (number_of_exceptions != 0) {
+					exception_index_table = new int[number_of_exceptions];
+					for (int counter = 0; counter < number_of_exceptions; counter++) {
+						exception_index_table[counter] = in.readUnsignedShort();
+					}
+				}
+				attribute = new Attribute_Exceptions(attribute_length, number_of_exceptions, exception_index_table);
+				break;
+
+			case Constants.ATTRIBUTE_InnerClasses:
+				int number_of_classes = in.readUnsignedShort();
+				Attribute_InnerClasses.InnerClass[] innerClasses = null;
+				if (number_of_classes != 0) {
+					innerClasses = new Attribute_InnerClasses.InnerClass[number_of_classes];
+					for (int counter = 0; counter < number_of_classes; counter++) {
+						innerClasses[counter] = readInnerClass(in);
+					}
+				}
+				attribute = new Attribute_InnerClasses(attribute_length, number_of_classes, innerClasses);
+				break;
+
+			case Constants.ATTRIBUTE_Synthetic:
+				attribute = new Attribute_Synthetic();
+				break;
+
+			case Constants.ATTRIBUTE_LineNumberTable:
+				int line_number_table_length = in.readUnsignedShort();
+				Attribute_LineNumberTable.LineNumber[] line_number_table = null;
+				if (line_number_table_length != 0) {
+					line_number_table = new Attribute_LineNumberTable.LineNumber[line_number_table_length];
+					for (int counter = 0; counter < line_number_table_length; counter++) {
+						line_number_table[counter] = readLineNumber(in);
+					}
+				}
+				attribute = new Attribute_LineNumberTable(attribute_length, line_number_table_length, line_number_table);
+				break;
+
+			case Constants.ATTRIBUTE_LocalVariableTable:
+				int local_variable_table_length = in.readUnsignedShort();
+				Attribute_LocalVariableTable.LocalVariable[] local_variable_table = null;
+				if (local_variable_table_length != 0) {
+					local_variable_table = new Attribute_LocalVariableTable.LocalVariable[local_variable_table_length];
+					for (int counter = 0; counter < local_variable_table_length; counter++) {
+						local_variable_table[counter] = readLocalVariable(in);
+					}
+				}
+				attribute = new Attribute_LocalVariableTable(attribute_length, local_variable_table_length, local_variable_table);
+				break;
+			case Constants.ATTRIBUTE_Deprecated:
+				attribute = new Attribute_Deprecated();
+				break;
+			}
+		} else {
+			byte[] info = new byte[attribute_length];
+			in.read(info);
+			attribute = new Attribute(attribute_name_index, attribute_length, info);
+		}
+		return attribute;
+	}
+
+	private Attribute_Code.ExceptionTableItem readExceptionTableItem(DataInputStream in) throws IOException {
+		return new Attribute_Code.ExceptionTableItem(in.readUnsignedShort(), in.readUnsignedShort(), in.readUnsignedShort(), in.readUnsignedShort());
+	}
+
+	private Attribute_InnerClasses.InnerClass readInnerClass(DataInputStream in) throws IOException {
+		return new Attribute_InnerClasses.InnerClass(in.readUnsignedShort(), in.readUnsignedShort(), in.readUnsignedShort(), in.readUnsignedShort());
+	}
+
+	private Attribute_LineNumberTable.LineNumber readLineNumber(DataInputStream in) throws IOException {
+		return new Attribute_LineNumberTable.LineNumber(in.readUnsignedShort(), in.readUnsignedShort());
+	}
+
+	private Attribute_LocalVariableTable.LocalVariable readLocalVariable(DataInputStream in) throws IOException {
+		return new Attribute_LocalVariableTable.LocalVariable(in.readUnsignedShort(), in.readUnsignedShort(), in.readUnsignedShort(), in
+				.readUnsignedShort(), in.readUnsignedShort());
+	}
+
+	private Attribute_Code.Opcode[] parseOpcodes(byte[] bytes) {
+		ArrayList ret = new ArrayList(bytes.length);
+		Attribute_Code.Opcode op;
+		OpcodeInfo opInfo;
+		int offset;
+		byte[][] operands = null;
+		boolean wide = false;
+
+		for (int i = 0; i < bytes.length; i++) {
+			offset = i;
+			opInfo = OpcodeHelper.OPCODES[0xFF & bytes[i]];
+			if (opInfo.operandsLength == null) {
+				operands = null;
+			} else {
+				if (opInfo.opcode == Constants.TABLESWITCH) {
+					int padnum = i % 4;
+					padnum = 3 - padnum;
+					i = i + padnum + 1;
+
+					// defualt value
+					byte[] defaultb = new byte[4];
+					for (int t = 0; t < 4; t++) {
+						defaultb[t] = bytes[i + t];
+					}
+					i = i + 4;
+
+					// low value
+					byte[] lowb = new byte[4];
+					for (int t = 0; t < 4; t++) {
+						lowb[t] = bytes[i + t];
+					}
+					i = i + 4;
+
+					// high byte
+					byte[] highb = new byte[4];
+					for (int t = 0; t < 4; t++) {
+						highb[t] = bytes[i + t];
+					}
+					i = i + 4;
+
+					int high = Util.getNum(highb);
+					int low = Util.getNum(lowb);
+					int total = high - low + 1 + 3 + 1; // number of jump offsets + one byte of opcode + high byte +low byte+defualt byte+padding byte
+					if (total < 0) {
+						total = 1;
+					}
+					operands = new byte[total][4];
+					operands[0] = new byte[padnum];
+					for (int ti = 0; ti < padnum; ti++) {
+						operands[0][ti] = (byte) 0;
+					}
+					operands[1] = defaultb;
+					operands[2] = lowb;
+					operands[3] = highb;
+
+					for (int t = 4; t < total; t++) {
+						operands[t][0] = bytes[i++];
+						operands[t][1] = bytes[i++];
+						operands[t][2] = bytes[i++];
+						operands[t][3] = bytes[i++];
+					}
+					i--;
+				} else if (opInfo.opcode == Constants.LOOKUPSWITCH) {
+					int padnum = i % 4;
+					padnum = 3 - padnum;
+					i = i + padnum + 1;
+
+					// defualt value
+					byte[] defaultb = new byte[4];
+					for (int t = 0; t < 4; t++) {
+						defaultb[t] = bytes[i + t];
+					}
+					i = i + 4;
+
+					// npair value
+					byte[] npairb = new byte[4];
+					for (int t = 0; t < 4; t++) {
+						npairb[t] = bytes[i + t];
+					}
+					i = i + 4;
+
+					int npair = Util.getNum(npairb);
+
+					int total = npair * 2 + 3; // npair *2 +defualt byte+one byte of opcode+padding bytes
+					operands = new byte[total][4];
+					operands[0] = new byte[padnum];
+					for (int ti = 0; ti < padnum; ti++) {
+						operands[0][ti] = (byte) 0;
+					}
+					operands[1] = defaultb;
+					operands[2] = npairb;
+					for (int t = 3; t < total; t++) {
+						operands[t][0] = bytes[i++];
+						operands[t][1] = bytes[i++];
+						operands[t][2] = bytes[i++];
+						operands[t][3] = bytes[i++];
+					}
+					i--;
+				} else if (opInfo.opcode == Constants.WIDE) {
+					wide = true;
+				} else if (wide == true) {
+					operands = new byte[opInfo.operandsLength.length][];
+					for (int j = 0; j < opInfo.operandsLength.length; j++) {
+						operands[j] = new byte[opInfo.operandsLength[j]];
+						for (int t = 0; t < opInfo.operandsLength[j] + 1; t++) {
+							operands[j][t] = bytes[++i];
+						}
+					}
+					wide = false;
+				} else {
+
+					operands = new byte[opInfo.operandsLength.length][];
+					for (int j = 0; j < opInfo.operandsLength.length; j++) {
+						operands[j] = new byte[opInfo.operandsLength[j]];
+						for (int t = 0; t < opInfo.operandsLength[j]; t++) {
+							operands[j][t] = bytes[++i];
+						}
+					}
+				}
+			}
+			op = new Attribute_Code.Opcode(offset, opInfo.opcode, operands);
+			ret.add(op);
+		}
+		return (Attribute_Code.Opcode[]) ret.toArray(new Attribute_Code.Opcode[0]);
+	}
+
+	private static void prt(Object s) {
+		//				 System.out.println(s);
+	} //	class DataInputStream {
+	//		java.io.DataInputStream in;
+	//
+	//		public DataInputStream(FileInputStream ins) {
+	//			in = new java.io.DataInputStream(ins);
+	//		}
+	//
+	//		public int readInt() throws IOException {
+	//			int i = in.readInt();
+	//			prt(""int:"" + i);
+	//			return i;
+	//		}
+	//
+	//		public int readUnsignedShort() throws IOException {
+	//			int i = in.readUnsignedShort();
+	//			prt(""sho:"" + i);
+	//			return i;
+	//		}
+	//
+	//		public byte readByte() throws IOException {
+	//			byte b = in.readByte();
+	//			prt(""bye:"" + b);
+	//			return b;
+	//		}
+	//
+	//		public int read(byte[] b) throws IOException {
+	//			int i = in.read(b);
+	//			StringBuffer buf = new StringBuffer();
+	//			for (int t = 0; t < i; t++) {
+	//				buf.append(Integer.toString(b[t] & 0xFF) + "","");
+	//			}
+	//			prt(buf.toString());
+	//			return i;
+	//		}
+	//
+	//		public float readFloat() throws IOException {
+	//			float f = in.readFloat();
+	//			prt(""flo:"" + f);
+	//			return f;
+	//
+	//		}
+	//
+	//		public long readLong() throws IOException {
+	//			long l = in.readLong();
+	//			prt(""long:"" + l);
+	//			return l;
+	//		}
+	//
+	//		public double readDouble() throws IOException {
+	//			double d = in.readDouble();
+	//			prt(""dou:"" + d);
+	//			return d;
+	//		}
+	//
+	//		public String readUTF() throws IOException {
+	//			String d = in.readUTF();
+	//			prt(""str:"" + d);
+	//			return d;
+	//		}
+	//
+	//		public void close() throws IOException {
+	//			in.close();
+	//		}
+	//
+	//	}
+}",True
+com.jasml.decompiler.SourceCodeBuilder,0,0,0,31,0,173,4,31,2,0,1,828,828,13,1.0,36,44,0,213,0.666666667,1.0,213,6.870967742,6.870967742,3,54,0,1422,54,4,48,1,245,233,6694,0,0,0,0,2,0,0,0,2,0,0,4,27,0,0,0,0,31,1,0,0,1,30,29,0,2,2,2,0,2,"/*
+ * Author jyang Created on 2006-4-5 10:30:53
+ */
+package com.jasml.decompiler;
+
+import java.util.HashSet;
+
+import com.jasml.classes.Attribute;
+import com.jasml.classes.Attribute_Code;
+import com.jasml.classes.Attribute_ConstantValue;
+import com.jasml.classes.Attribute_Deprecated;
+import com.jasml.classes.Attribute_Exceptions;
+import com.jasml.classes.Attribute_InnerClasses;
+import com.jasml.classes.Attribute_LineNumberTable;
+import com.jasml.classes.Attribute_LocalVariableTable;
+import com.jasml.classes.Attribute_SourceFile;
+import com.jasml.classes.Attribute_Synthetic;
+import com.jasml.classes.ConstantPool;
+import com.jasml.classes.ConstantPoolItem;
+import com.jasml.classes.Constant_Class;
+import com.jasml.classes.Constant_Double;
+import com.jasml.classes.Constant_Fieldref;
+import com.jasml.classes.Constant_Float;
+import com.jasml.classes.Constant_Integer;
+import com.jasml.classes.Constant_InterfaceMethodref;
+import com.jasml.classes.Constant_Long;
+import com.jasml.classes.Constant_Methodref;
+import com.jasml.classes.Constant_NameAndType;
+import com.jasml.classes.Constant_String;
+import com.jasml.classes.Constant_Utf8;
+import com.jasml.classes.Constants;
+import com.jasml.classes.Field;
+import com.jasml.classes.JavaClass;
+import com.jasml.classes.Method;
+import com.jasml.classes.Attribute_LocalVariableTable.LocalVariable;
+import com.jasml.helper.OpcodeHelper;
+import com.jasml.helper.Util;
+
+public class SourceCodeBuilder {
+	ConstantPool cpl;
+
+	SourceCodeBuilderConfiguration config;
+
+	public SourceCodeBuilder() {
+		config = new SourceCodeBuilderConfiguration();
+	}
+
+	public SourceCodeBuilder(SourceCodeBuilderConfiguration config) {
+		this.config = config;
+	}
+
+	private String toString(Attribute_ConstantValue var) {
+		return toString(cpl.getConstant(var.constant_value_index));
+	}
+
+	private String toString(Attribute_Deprecated var) {
+		return ""["" + Constants.ATTRIBUTE_NAME_DEPRECATED + ""]"";
+	}
+
+	private String toString(Attribute_Synthetic var) {
+		return ""["" + Constants.ATTRIBUTE_NAME_SYNTHETIC + ""]"";
+	}
+
+	private String toString(Attribute_SourceFile var) {
+		return ""["" + Constants.ATTRIBUTE_NAME_SOURCE_FILE + "" : "" + toString(cpl.getConstant(var.sourcefile_index)) + ""]"";
+	}
+
+	private String toString(Attribute_LocalVariableTable attr, Attribute_Code.Opcode[] ops) {
+		if (attr.local_variable_table_length == 0)
+			return """";
+		StringBuffer buf = new StringBuffer();
+		buf.append(""["" + Constants.ATTRIBUTE_NAME_LOCAL_VARIABLE + "" :"");
+		LocalVariable var;
+		for (int i = 0; i < attr.local_variable_table_length; i++) {
+			var = attr.local_variable_table[i];
+			buf.append(Constants.LINE_SEPARATER);
+			buf.append(Util.descriptorToString(toString(cpl.getConstant(var.descriptor_index)))); // descriptor
+			buf.append("" "");
+			buf.append(toString(cpl.getConstant(var.name_index))); // name
+			buf.append(""  "");
+			buf.append(""start="" + config.labelPrefix + var.start_pc); // start position
+			buf.append("", "");
+			buf.append(""end="" + config.labelPrefix + (findPreviousInstruction(var.start_pc + var.length, ops)).offset); // valid scope
+			buf.append("", "");
+			buf.append(""index="" + var.index); // index into runtime frame
+		}
+		buf.append(""]"");
+		return buf.toString();
+	}
+
+	private String toString(Attribute_LineNumberTable attr) {
+		if (attr.line_number_table_length == 0)
+			return """";
+		StringBuffer buf = new StringBuffer();
+		buf.append(""["" + Constants.ATTRIBUTE_NAME_LINE_NUMBER_TABLE + "" :"");
+		for (int i = 0; i < attr.line_number_table_length; i++) {
+			buf.append(Constants.LINE_SEPARATER);
+			buf.append(config.labelPrefix + attr.lineNumberTable[i].start_pc + "" ->  "" + attr.lineNumberTable[i].line_number);
+		}
+		buf.append(""]"");
+		return buf.toString();
+	}
+
+	private String toString(Attribute_InnerClasses attr) {
+		StringBuffer buf = new StringBuffer();
+		Attribute_InnerClasses.InnerClass innerClass;
+		buf.append(""["" + Constants.ATTRIBUTE_NAME_INNER_CLASSES + "" :"");
+		for (int i = 0; i < attr.number_of_classes; i++) {
+			buf.append(Constants.LINE_SEPARATER);
+			innerClass = attr.innerClasses[i];
+			// access flag
+			buf.append(""access = "" + Util.accessFlagToString_Class((short) innerClass.inner_class_access_flags) + "" , "");
+			// inner class name
+			buf.append(""name = "");
+			if (innerClass.inner_name_index == 0) {
+				buf.append(""0 , "");
+			} else {
+				buf.append(toString(cpl.getConstant(innerClass.inner_name_index)) + "" , "");
+			}
+
+			// inner class info
+			buf.append(""fullname = "");
+			buf.append(toString(cpl.getConstant(innerClass.inner_class_info_index)) + "" , "");
+
+			// outer class info
+			buf.append(""outername = "");
+			if (innerClass.outer_class_info_index == 0) {
+				buf.append(""0"");
+			} else {
+				buf.append(toString(cpl.getConstant(innerClass.outer_class_info_index)));
+			}
+		}
+		buf.append(']');
+		return buf.toString();
+	}
+
+	private String toString(Attribute_Exceptions attr) {
+		if (attr.number_of_exceptions == 0)
+			return """";
+
+		StringBuffer buf = new StringBuffer();
+		for (int i = 0; i < attr.number_of_exceptions; i++) {
+			buf.append(toString(cpl.getConstant(attr.exception_index_table[i])) + "","");
+		}
+		buf.deleteCharAt(buf.length() - 1);
+		return buf.toString();
+	}
+
+	private String getLocalVariableName(int index, int codeOffset, Attribute_LocalVariableTable.LocalVariable[] lvts) {
+		if (lvts == null) {
+			return ""UnknowVariable"";
+		}
+		int i;
+		Attribute_LocalVariableTable.LocalVariable lv;
+		for (i = 0; i < lvts.length; i++) {
+			lv = lvts[i];
+			if (lv.index == index && lv.start_pc <= codeOffset && (lv.start_pc + lv.length) >= codeOffset) {
+				return toString(cpl.getConstant(lv.name_index));
+			}
+		}
+		// no match found, TODO: why could this happen
+		// search for the one with the same index value
+		for (i = 0; i < lvts.length; i++) {
+			lv = lvts[i];
+			if (lv.index == index) {
+				return toString(cpl.getConstant(lv.name_index));
+			}
+		}
+
+		// still not found
+		return ""unknown_local_variable"";
+
+		// TODO: this is little tricky
+	}
+
+	private String toString(Attribute_Code code, HashSet referedLines) {
+		StringBuffer buf = new StringBuffer();
+		Attribute_Code.Opcode op;
+		Attribute_Code.Opcode[] ops = code.codes;
+		byte[][] operands;
+		int ti, def, low, high, jump_count, npairs;
+		String soffset;
+
+		Attribute_LocalVariableTable.LocalVariable[] lvts = null;
+		for (int i = 0; i < code.attributes_count; i++) {
+			if (code.attributes[i] instanceof Attribute_LocalVariableTable) {
+				lvts = ((Attribute_LocalVariableTable) code.attributes[i]).local_variable_table;
+				break;
+			}
+		}
+
+		// instructions
+		if (code.code_length != 0) {
+			for (int t = 0; t < ops.length; t++) {
+				op = ops[t];
+				operands = op.operands;
+				// offset
+				soffset = Integer.toString(op.offset);
+				if (referedLines.contains(soffset) == true) {
+					if (config.labelInSingleLine == true) {
+						buf.append(config.labelPrefix + soffset + "" : "");
+						buf.append(Constants.LINE_SEPARATER);
+						buf.append(config.instructionPadding);
+					} else {
+						buf.append(Util.padChar(config.labelPrefix + soffset, config.labelLength, ' ') + "" : "");
+					}
+				} else {
+					buf.append(config.instructionPadding);
+				}
+				// opcode name
+				buf.append(Constants.OPCODE_NAMES[0xFF & op.opcode] + ""  "");
+				switch (op.opcode) {
+				case Constants.TABLESWITCH:
+					def = Util.getNum(operands[1]) + op.offset;
+					low = Util.getNum(operands[2]);
+					high = Util.getNum(operands[3]);
+					jump_count = high - low + 1;
+
+					buf.append(""default="" + config.labelPrefix + def + "", low="" + low + "", high="" + high + "", jump_table:"");
+
+					for (int i = 0; i < jump_count; i++) {
+						// jump address is calculated by adding with tableswitch offset.
+						buf.append(config.labelPrefix + (Util.getNum(operands[i + 4]) + op.offset) + "","");
+					}
+					buf.deleteCharAt(buf.length() - 1);
+					break;
+				case Constants.LOOKUPSWITCH: {
+					def = Util.getNum(operands[1]) + op.offset;
+					npairs = Util.getNum(operands[2]);
+
+					buf.append(""default="" + config.labelPrefix + def + "", npairs="" + npairs + "", jump_table:"");
+					if (npairs != 0) {
+						for (int i = 0; i < npairs; i++) {
+							buf.append(Util.getNum(operands[i * 2 + 3]));
+							buf.append(""->"");
+							buf.append(config.labelPrefix + (Util.getNum(operands[i * 2 + 4]) + op.offset) + "","");
+
+						}
+						buf.deleteCharAt(buf.length() - 1);
+					}
+				}
+					break;
+				/*
+				 * Two address bytes + offset from start of byte stream form the
+				 * jump target
+				 */
+				case Constants.GOTO:
+				case Constants.IFEQ:
+				case Constants.IFGE:
+				case Constants.IFGT:
+				case Constants.IFLE:
+				case Constants.IFLT:
+				case Constants.JSR:
+				case Constants.IFNE:
+				case Constants.IFNONNULL:
+				case Constants.IFNULL:
+				case Constants.IF_ACMPEQ:
+				case Constants.IF_ACMPNE:
+				case Constants.IF_ICMPEQ:
+				case Constants.IF_ICMPGE:
+				case Constants.IF_ICMPGT:
+				case Constants.IF_ICMPLE:
+				case Constants.IF_ICMPLT:
+				case Constants.IF_ICMPNE:
+				/*
+				 * 32-bit wide jumps
+				 */
+				case Constants.GOTO_W:
+				case Constants.JSR_W:
+					buf.append(config.labelPrefix + (Util.getSignedNum(operands[0]) + op.offset));
+					break;
+				/*
+				 * Index byte references local variable
+				 */
+				case Constants.ALOAD:
+				case Constants.ASTORE:
+				case Constants.DLOAD:
+				case Constants.DSTORE:
+				case Constants.FLOAD:
+				case Constants.FSTORE:
+				case Constants.ILOAD:
+				case Constants.ISTORE:
+				case Constants.LLOAD:
+				case Constants.LSTORE:
+				case Constants.RET:
+					ti = Util.getNum(operands[0]); // the index into local variable
+					// table
+					buf.append(getLocalVariableName(ti, op.offset, lvts) + ""("" + ti + "")"");
+					break;
+				/*
+				 * Remember wide byte which is used to form a 16-bit address in the
+				 * following instruction. Relies on that the method is called again
+				 * with the following opcode.
+				 */
+				case Constants.WIDE:
+					// TODO: testing
+					break;
+				/*
+				 * Array of basic type.
+				 */
+				case Constants.NEWARRAY:
+					buf.append(Constants.TYPE_NAMES[Util.getNum(operands[0])]);
+					break;
+				/*
+				 * Access object/class fields.
+				 */
+				case Constants.GETFIELD:
+				case Constants.GETSTATIC:
+				case Constants.PUTFIELD:
+				case Constants.PUTSTATIC:
+				/*
+				 * Operands are references to classes in constant pool
+				 */
+				case Constants.NEW:
+				case Constants.CHECKCAST:
+				case Constants.INSTANCEOF:
+				/*
+				 * Operands are references to methods in constant pool
+				 */
+				case Constants.INVOKESPECIAL:
+				case Constants.INVOKESTATIC:
+				case Constants.INVOKEVIRTUAL:
+					buf.append(toString(cpl.getConstant(Util.getNum(operands[0]))));
+					break;
+
+				case Constants.INVOKEINTERFACE:
+					buf.append(toString(cpl.getConstant(Util.getNum(operands[0]))));
+					buf.append("" "");
+					buf.append(Util.getNum(operands[1]));
+					break;
+
+				/*
+				 * Operands are references to items in constant pool
+				 */
+				case Constants.LDC_W:
+				case Constants.LDC2_W:
+				case Constants.LDC:
+					buf.append(toString(cpl.getConstant(Util.getNum(operands[0]))));
+					break;
+
+				/*
+				 * Array of references.
+				 */
+				case Constants.ANEWARRAY:
+					buf.append(toString(cpl.getConstant(Util.getNum(operands[0]))));
+					break;
+				/*
+				 * Multidimensional array of references.
+				 */
+				case Constants.MULTIANEWARRAY:
+					buf.append(toString(cpl.getConstant(Util.getNum(operands[0]))));
+					buf.append(' ');					
+					buf.append(Util.getNum(operands[1]));
+					break;
+				/*
+				 * Increment local variable.
+				 */
+				case Constants.IINC:
+					ti = Util.getNum(operands[0]);
+					buf.append(getLocalVariableName(ti, op.offset, lvts) + ""("" + ti + "") "" + Util.getSignedNum(operands[1]));
+					break;
+				default:
+					if (operands != null) {
+						for (int i = 0; i < operands.length; i++) {
+							buf.append(Util.getNum(operands[i]) + "" "");
+						}
+					}
+				}
+
+				if (config.showInfo == true) {
+					buf.append(""   //"");
+					buf.append(OpcodeHelper.getOpcodeInfo(op.opcode).operation);
+				}
+				buf.append(Constants.LINE_SEPARATER);
+			}
+		}
+
+		// Local variable table
+		for (int i = 0; i < code.attributes_count; i++) {
+			if (code.attributes[i] instanceof Attribute_LocalVariableTable
+					&& ((Attribute_LocalVariableTable) code.attributes[i]).local_variable_table_length != 0) {
+				buf.append(Constants.LINE_SEPARATER);
+				buf.append(toString((Attribute_LocalVariableTable) code.attributes[i], ops));
+				break;
+			}
+		}
+
+		// Exception table
+		if (code.exception_table_length != 0) {
+			buf.append(Constants.LINE_SEPARATER);
+			buf.append(Constants.LINE_SEPARATER);
+
+			buf.append(""["" + Constants.ATTRIBUTE_NAME_EXCEPTION_TABLE + "":"");
+			for (int i = 0; i < code.exception_table_length; i++) {
+				buf.append(Constants.LINE_SEPARATER);
+				buf.append(""start="" + config.labelPrefix + code.exception_table[i].start_pc);
+				buf.append("" , "");
+				buf.append(""end="" + config.labelPrefix + code.exception_table[i].end_pc);
+				buf.append("" , "");
+				buf.append(""handler="" + config.labelPrefix + code.exception_table[i].handler_pc);
+				buf.append("" , "");
+				if (code.exception_table[i].catch_type != 0) {
+					buf.append(""catch_type="" + toString(cpl.getConstant(code.exception_table[i].catch_type)));
+				} else {
+					buf.append(""catch_type=0"");
+				}
+			}
+			buf.append(""]"");
+		}
+
+		// Line number table
+		if (config.showLineNumber == true) {
+			for (int i = 0; i < code.attributes_count; i++) {
+				if (code.attributes[i] instanceof Attribute_LineNumberTable
+						&& ((Attribute_LineNumberTable) code.attributes[i]).line_number_table_length != 0) {
+					buf.append(Constants.LINE_SEPARATER);
+					buf.append(Constants.LINE_SEPARATER);
+					buf.append(toString((Attribute_LineNumberTable) code.attributes[i]));
+					break;
+				}
+			}
+		}
+
+		// max_stack
+		buf.append(Constants.LINE_SEPARATER);
+		buf.append(Constants.LINE_SEPARATER);
+		buf.append(""["" + Constants.ATTRIBUTE_NAME_MAX_STACK + "" : "" + code.max_stack + ""]"");
+		// max_local
+		buf.append(Constants.LINE_SEPARATER);
+		buf.append(""["" + Constants.ATTRIBUTE_NAME_MAX_LOCAL + "" : "" + code.max_locals + ""]"");
+		return buf.toString();
+	}
+
+	private String toString(Attribute var) {
+		switch (var.attribute_tag) {
+		case Constants.ATTRIBUTE_SourceFile:
+			return toString((Attribute_SourceFile) var);
+
+		case Constants.ATTRIBUTE_ConstantValue:
+			return toString((Attribute_ConstantValue) var);
+
+		case Constants.ATTRIBUTE_Code:
+			return toString((Attribute_Code) var);
+
+		case Constants.ATTRIBUTE_Exceptions:
+			return toString((Attribute_Exceptions) var);
+
+		case Constants.ATTRIBUTE_InnerClasses:
+			return toString((Attribute_InnerClasses) var);
+
+		case Constants.ATTRIBUTE_Synthetic:
+			return toString((Attribute_Synthetic) var);
+
+		case Constants.ATTRIBUTE_LineNumberTable:
+			return toString((Attribute_LineNumberTable) var);
+
+		case Constants.ATTRIBUTE_LocalVariableTable:
+			return toString((Attribute_LocalVariableTable) var);
+
+		case Constants.ATTRIBUTE_Deprecated:
+			return toString((Attribute_Deprecated) var);
+
+		default: {
+			StringBuffer buf = new StringBuffer();
+			if (var.attribute_name == null) {
+				// this is an unknow attribute
+				buf.append(toString(cpl.getConstant(var.attribute_name_index)));
+			} else {
+				buf.append(var.attribute_name);
+			}
+			if (var.attrInfo != null) {
+				buf.append("" = "" + new String(var.attrInfo));
+			}
+			return buf.toString();
+		}
+		}
+
+	}
+
+	private String toString(Constant_Float var) {
+		return Float.toString(var.value) + ""F"";
+	}
+
+	private String toString(Constant_Long var) {
+		return Long.toString(var.value) + ""L"";
+	}
+
+	private String toString(Constant_Double var) {
+		return Double.toString(var.value) + ""D"";
+	}
+
+	private String toString(Constant_Utf8 var) {
+		return var.bytes;
+	}
+
+	private String toString(ConstantPoolItem var) {
+		switch (var.tag) {
+		case Constants.CONSTANT_Utf8:
+			return toString((Constant_Utf8) var);
+		case Constants.CONSTANT_Integer:
+			return toString((Constant_Integer) var);
+
+		case Constants.CONSTANT_Float:
+			return toString((Constant_Float) var);
+
+		case Constants.CONSTANT_Long:
+			return toString((Constant_Long) var);
+
+		case Constants.CONSTANT_Double:
+			return toString((Constant_Double) var);
+
+		case Constants.CONSTANT_Class:
+			return toString((Constant_Class) var);
+
+		case Constants.CONSTANT_Fieldref:
+			return toString((Constant_Fieldref) var);
+
+		case Constants.CONSTANT_String:
+			return toString((Constant_String) var);
+
+		case Constants.CONSTANT_Methodref:
+			return toString((Constant_Methodref) var);
+
+		case Constants.CONSTANT_InterfaceMethodref:
+			return toString((Constant_InterfaceMethodref) var);
+
+		case Constants.CONSTANT_NameAndType:
+			return toString((Constant_NameAndType) var);
+		default:
+			return var.tagName;
+		}
+	}
+
+	private String toString(Constant_Integer var) {
+		return Integer.toString(var.value);
+	}
+
+	private String toString(Constant_Class var) {
+		return Util.constantClassToString(toString((Constant_Utf8) cpl.getConstant(var.name_index)));
+	}
+
+	private String toString(Constant_Fieldref var) {
+		String name, type, temp = toString(cpl.getConstant(var.name_and_type_index));
+		int i = temp.indexOf("" "");
+		name = temp.substring(0, i);
+		type = temp.substring(i + 1);
+		type = Util.descriptorToString(type);
+
+		return type + "" "" + toString(cpl.getConstant(var.class_index)) + ""."" + name;
+	}
+
+	private String toString(Constant_InterfaceMethodref var) {
+		String name, retType, para, temp = toString(cpl.getConstant(var.name_and_type_index));
+		int i = temp.indexOf("" "");
+		name = temp.substring(0, i);
+		i = temp.indexOf((char) ')');
+		para = temp.substring(temp.indexOf((char) '(') + 1, i);
+		retType = temp.substring(i + 1, temp.length());
+
+		para = Util.methodParameterToString(para);
+		retType = Util.descriptorToString(retType);
+		return retType + "" "" + toString(cpl.getConstant(var.class_index)) + ""."" + name + ""("" + para + "")"";
+	}
+
+	private String toString(Constant_Methodref var) {
+		String name, retType, para = null, temp = toString(cpl.getConstant(var.name_and_type_index));
+		int i = temp.indexOf("" "");
+		name = temp.substring(0, i);
+		i = temp.indexOf((char) ')');
+		para = temp.substring(temp.indexOf((char) '(') + 1, i);
+		retType = temp.substring(i + 1, temp.length());
+
+		para = Util.methodParameterToString(para);
+		retType = Util.descriptorToString(retType);
+		return retType + "" "" + toString(cpl.getConstant(var.class_index)) + ""."" + name + ""("" + para + "")"";
+	}
+
+	private String toString(Constant_NameAndType var) {
+		return toString(cpl.getConstant(var.name_index)) + "" "" + toString(cpl.getConstant(var.descriptor_index));
+	}
+
+	private String toString(Constant_String var) {
+		return Util.toViewableString(toString(cpl.getConstant(var.string_index)));
+	}
+
+	public String toString(JavaClass clazz) {
+		StringBuffer buf = new StringBuffer();
+		this.cpl = clazz.constantPool;
+
+		if (config.showVersion == true) {
+			// Minor and Major version of the class
+			buf.append(""[Major : "" + Integer.toString(clazz.major_version) + ""]"");
+			buf.append(Constants.LINE_SEPARATER);
+			buf.append(""[Minor : "" + Integer.toString(clazz.minor_version) + ""]"");
+			buf.append(Constants.LINE_SEPARATER);
+		}
+
+		// class access flag + class name
+		buf.append(Util.accessFlagToString_Class(clazz.access_flags) + "" "" + toString(cpl.getConstant(clazz.this_class)));
+		// super classes
+		if (clazz.super_class != 0) {
+			// java.lang.Object dose not hava super class
+			buf.append("" extends "" + toString(cpl.getConstant(clazz.super_class)));
+		}
+		// implemented interfaces
+		if (clazz.interfaces_count != 0) {
+			buf.append("" implements "");
+			for (int i = 0; i < clazz.interfaces_count; i++) {
+				buf.append(toString(cpl.getConstant(clazz.interfaces[i])) + "","");
+			}
+			buf.deleteCharAt(buf.length() - 1);
+		}
+
+		buf.append(""{"");
+
+		// fields
+		if (clazz.fields_count != 0) {
+			for (int i = 0; i < clazz.fields_count; i++) {
+				buf.append(Constants.LINE_SEPARATER);
+				buf.append(toString(clazz.fields[i]));
+			}
+		}
+
+		// methods
+		if (clazz.methods_count != 0) {
+			for (int i = 0; i < clazz.methods_count; i++) {
+				buf.append(Constants.LINE_SEPARATER);
+				buf.append(toString(clazz.methods[i]));
+			}
+		}
+
+		// attributes of this class
+		if (clazz.attributes_count != 0) {
+			buf.append(Constants.LINE_SEPARATER);
+			for (int i = 0; i < clazz.attributes_count; i++) {
+				buf.append(Constants.LINE_SEPARATER);
+				String tx = toString(clazz.attributes[i]);
+				buf.append(tx);
+			}
+		}
+
+		buf.append(Constants.LINE_SEPARATER);
+		buf.append(""}"");
+		return buf.toString();
+	}
+
+	private String toString(Field field) {
+		StringBuffer buf = new StringBuffer();
+
+		// access flag
+		buf.append(Util.accessFlagToString_Field((short) field.access_flags) + "" "");
+		// field descriptor
+		buf.append(Util.descriptorToString(toString(cpl.getConstant(field.descriptor_index))) + "" "");
+		// field name
+		buf.append(toString(cpl.getConstant(field.name_index)));
+		// constant value
+		if (field.attributes_count != 0) {
+			for (int i = 0; i < field.attributes_count; i++) {
+				if (field.attributes[i] instanceof Attribute_ConstantValue) {
+					buf.append("" = "");
+					buf.append(toString(field.attributes[i]));
+				}
+			}
+		}
+
+		// deprecated or synthetic attribute
+		if (field.attributes_count != 0) {
+			for (int i = 0; i < field.attributes_count; i++) {
+				if ((field.attributes[i] instanceof Attribute_ConstantValue) == false) {
+					buf.append('\t');
+					buf.append(toString(field.attributes[i]));
+				}
+			}
+		}
+		return buf.toString().trim();
+	}
+
+	private String toString(Method method) {
+		StringBuffer buf = new StringBuffer();
+
+		// method access flag
+		buf.append(Util.accessFlagToString_Method((short) method.access_flags) + "" "");
+
+		// method parameter and return type
+		String retType, paras, temp = toString(cpl.getConstant(method.descriptor_index));
+		int ti = temp.indexOf("")"");
+		paras = Util.methodParameterToString(temp.substring(1, ti));
+		retType = Util.descriptorToString(temp.substring(ti + 1));
+
+		// return type
+		buf.append(retType + "" "");
+		// method name
+		buf.append(toString(cpl.getConstant(method.name_index)) + "" "");
+		// method para
+		buf.append(""("" + paras + "")"");
+
+		// exception
+		if (method.attributes_count != 0) {
+			for (int i = 0; i < method.attributes_count; i++) {
+				if (method.attributes[i].attribute_tag == Constants.ATTRIBUTE_Exceptions) {
+					buf.append("" throws "");
+					buf.append(toString(method.attributes[i]));
+				}
+			}
+		}
+
+		buf.append(""{"");
+		// code
+		if (method.attributes_count != 0) {
+			for (int i = 0; i < method.attributes_count; i++) {
+				if (method.attributes[i].attribute_tag == Constants.ATTRIBUTE_Code) {
+					buf.append(Constants.LINE_SEPARATER);
+					buf.append(toString((Attribute_Code) method.attributes[i], calculateReferences(method)));
+				}
+			}
+		}
+		if (method.attributes_count != 0) {
+			for (int i = 0; i < method.attributes_count; i++) {
+				if (method.attributes[i].attribute_tag != Constants.ATTRIBUTE_Code
+						&& method.attributes[i].attribute_tag != Constants.ATTRIBUTE_Exceptions) {
+					buf.append(Constants.LINE_SEPARATER);
+					buf.append(toString(method.attributes[i]));
+				}
+			}
+
+		}
+		buf.append(Constants.LINE_SEPARATER);
+		buf.append(""}"");
+
+		return buf.toString();
+	}
+
+	/**
+	 * generate a set containing all the line numbers which are refered inside
+	 * the method.
+	 * 
+	 * @param meth
+	 * @return
+	 */
+	private HashSet calculateReferences(Method meth) {
+		HashSet set = new HashSet();
+		Attribute att;
+		Attribute_Code.Opcode[] ops = null;
+		Attribute_Code.Opcode op;
+		for (int i = 0; i < meth.attributes_count; i++) {
+			if (meth.attributes[i].attribute_tag == Constants.ATTRIBUTE_Code) {
+				ops = ((Attribute_Code) meth.attributes[i]).codes;
+				break;
+			}
+		}
+		if (ops == null) {
+			return set;
+		}
+
+		for (int i = 0; i < meth.attributes_count; i++) {
+			att = meth.attributes[i];
+			if (att.attribute_tag == Constants.ATTRIBUTE_Code) {
+				Attribute_Code code = (Attribute_Code) att;
+				for (int j = 0; j < ops.length; j++) {
+					op = ops[j];
+					switch (op.opcode) {
+
+					case Constants.LOOKUPSWITCH:
+						set.add(Integer.toString(Util.getSignedNum(op.operands[1]) + op.offset)); //default
+						for (int t = 4; t < op.operands.length; t++) {
+							set.add(Integer.toString(Util.getSignedNum(op.operands[t++]) + op.offset));
+						}
+						break;
+					case Constants.TABLESWITCH:
+						set.add(Integer.toString(Util.getSignedNum(op.operands[1]) + op.offset)); //default
+						for (int t = 4; t < op.operands.length; t++) {
+							set.add(Integer.toString(Util.getSignedNum(op.operands[t]) + op.offset));
+						}
+						break;
+					case Constants.GOTO:
+					case Constants.IFEQ:
+					case Constants.IFGE:
+					case Constants.IFGT:
+					case Constants.IFLE:
+					case Constants.IFLT:
+					case Constants.JSR:
+					case Constants.IFNE:
+					case Constants.IFNONNULL:
+					case Constants.IFNULL:
+					case Constants.IF_ACMPEQ:
+					case Constants.IF_ACMPNE:
+					case Constants.IF_ICMPEQ:
+					case Constants.IF_ICMPGE:
+					case Constants.IF_ICMPGT:
+					case Constants.IF_ICMPLE:
+					case Constants.IF_ICMPLT:
+					case Constants.IF_ICMPNE:
+					case Constants.GOTO_W:
+					case Constants.JSR_W:
+						set.add(Integer.toString(Util.getSignedNum(op.operands[0]) + op.offset));
+						break;
+
+					}
+				}
+				if (code.exception_table_length != 0) {
+					Attribute_Code.ExceptionTableItem[] exceptions = code.exception_table;
+					Attribute_Code.ExceptionTableItem exc;
+					for (int j = 0; j < exceptions.length; j++) {
+						exc = exceptions[j];
+						set.add(Integer.toString(exc.start_pc));
+						set.add(Integer.toString(exc.end_pc));
+						set.add(Integer.toString(exc.handler_pc));
+					}
+				}
+
+				if (code.attributes_count != 0) {
+					for (int j = 0; j < code.attributes_count; j++) {
+						if (code.attributes[j].attribute_tag == Constants.ATTRIBUTE_LineNumberTable && config.showLineNumber == true) {
+							Attribute_LineNumberTable lineNumberTable = (Attribute_LineNumberTable) code.attributes[j];
+							Attribute_LineNumberTable.LineNumber[] lines = lineNumberTable.lineNumberTable;
+							for (int x = 0; x < lineNumberTable.line_number_table_length; x++) {
+								set.add(Integer.toString(lines[x].start_pc));
+							}
+						} else if (code.attributes[j].attribute_tag == Constants.ATTRIBUTE_LocalVariableTable) {
+							Attribute_LocalVariableTable lvt = (Attribute_LocalVariableTable) code.attributes[j];
+							if (lvt.local_variable_table_length != 0) {
+								Attribute_LocalVariableTable.LocalVariable[] lvs = lvt.local_variable_table;
+								Attribute_LocalVariableTable.LocalVariable lv;
+								for (int x = 0; x < lvs.length; x++) {
+									lv = lvs[x];
+									set.add(Integer.toString(lv.start_pc));
+									if (lv.length != 1) {
+										op = findPreviousInstruction(lv.start_pc + lv.length, ops);
+										if (op != null) {
+											set.add(Integer.toString(op.offset));
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				break;
+			}
+		}
+		return set;
+	}
+
+	/**
+	 * given an offset, and a series of instructions, find the first instruction
+	 * that is before the given offset
+	 * 
+	 * @param offset
+	 * @param ops
+	 * @return
+	 */
+	private Attribute_Code.Opcode findPreviousInstruction(int offset, Attribute_Code.Opcode[] ops) {
+		for (int i = ops.length - 1; i > -1; i--) {
+			if (ops[i].offset < offset) {
+				return ops[i];
+			}
+		}
+		return null;
+	}
+
+	public static String toString_Static(JavaClass clazz) {
+		SourceCodeBuilder builder = new SourceCodeBuilder();
+		return builder.toString(clazz);
+	}
+
+}",True
+com.jasml.helper.IntegerArray,0,1,0,3,0,0,0,2,4,0,1,27,20,0,1.0,0,3,0,4,0.75,0.666666667,3,1.333333333,1.5,5,33,0,943,34,4,48,1,245,233,6694,0,0,4,0,0,1,1,1,3,0,0,3,0,0,0,0,0,3,0,0,0,0,3,1,0,1,89,-65,77,12,"package com.jasml.helper;
+
+public class IntegerArray {
+	private int[] data;
+	private int max;
+	private int currentSize ;
+	private final static int Increment = 10;
+	public IntegerArray(int size){
+		data = new int[size];
+		max=size;
+		currentSize =0;
+	}
+	public void add(int var){
+		if(currentSize>=max){
+			max = max+Increment;
+			int[] ni = new int[max];
+			System.arraycopy(data,0,ni,0,data.length);
+			data = ni;
+			ni = null;
+		}
+		data[currentSize++]=var;
+	}
+	public int[] getAll(){
+		int[] ret = new int[currentSize];
+		System.arraycopy(data,0,ret,0,currentSize);
+		return ret;
+	}
+	
+}
+",False
+com.jasml.helper.Util,0,0,0,24,0,22,0,24,2,0,1,669,669,0,0.003623188,1,24,0,251,1.0,0.923076923,251,10.45833333,10.45833333,5,33,0,943,34,4,48,1,245,233,6694,0,2,0,0,0,2,2,2,0,0,0,24,0,0,0,0,0,24,24,0,0,24,0,24,0,0,1,1,0,1,"/*
+ * Author jyang
+ * Created on 2006-4-6 11:23:56
+ */
+package com.jasml.helper;
+
+import java.util.StringTokenizer;
+
+import com.jasml.classes.Constants;
+
+public class Util {
+
+	public static String accessFlagToString_Class(short accessFlag) {
+		StringBuffer buf = new StringBuffer();
+		if ((accessFlag & Constants.ACCESS_FLAG_CLASS_PUBLIC) != 0)
+			buf.append(""public "");
+		if ((accessFlag & Constants.ACCESS_FLAG_CLASS_FINAL) != 0)
+			buf.append(""final "");
+		if ((accessFlag & Constants.ACCESS_FLAG_CLASS_ABSTRACT) != 0)
+			buf.append(""abstract "");
+		if ((accessFlag & Constants.ACCESS_FLAG_CLASS_INTERFACE) != 0)
+			buf.append(""interface "");
+		else {
+			buf.append(""class "");
+		}
+		return buf.toString().trim();
+	}
+
+	public static short getAccessFlag_Class(String s) {
+		short ret = 0x0;
+		if (s.indexOf(""public"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_PUBLIC);
+
+		if (s.indexOf(""final"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_FINAL);
+
+		if (s.indexOf(""abstract"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_CLASS_ABSTRACT);
+
+		if (s.indexOf(""interface"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_CLASS_INTERFACE);
+
+		if (s.indexOf(""class"") != -1) {
+			/**
+			 * copied from jvm specification
+			 * All new compilers to the instruction set of the Java virtual machine should set the ACC_SUPER flag.
+			 */
+			ret = (short) (ret | Constants.ACCESS_FLAG_CLASS_SUPER);
+		}
+		return ret;
+
+	}
+
+	public static String accessFlagToString_Field(short accessFlag) {
+		StringBuffer buf = new StringBuffer();
+		if ((accessFlag & Constants.ACCESS_FLAG_FIELD_PUBLIC) != 0)
+			buf.append(""public "");
+		if ((accessFlag & Constants.ACCESS_FLAG_FIELD_PRIVATE) != 0)
+			buf.append(""private "");
+		if ((accessFlag & Constants.ACCESS_FLAG_FIELD_PROTECTED) != 0)
+			buf.append(""protected "");
+		if ((accessFlag & Constants.ACCESS_FLAG_FIELD_STATIC) != 0)
+			buf.append(""static "");
+		if ((accessFlag & Constants.ACCESS_FLAG_FIELD_FINAL) != 0)
+			buf.append(""final "");
+		if ((accessFlag & Constants.ACCESS_FLAG_FIELD_VOLATILE) != 0)
+			buf.append(""volatile "");
+		if ((accessFlag & Constants.ACCESS_FLAG_FIELD_TRANSIENT) != 0)
+			buf.append(""transient "");
+		return buf.toString().trim();
+	}
+
+	public static String accessFlagToString_Method(short accessFlag) {
+		StringBuffer buf = new StringBuffer();
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_PUBLIC) != 0)
+			buf.append(""public "");
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_PRIVATE) != 0)
+			buf.append(""private "");
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_PROTECTED) != 0)
+			buf.append(""protected "");
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_STATIC) != 0)
+			buf.append(""static "");
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_FINAL) != 0)
+			buf.append(""final "");
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_SYNCHRONIZED) != 0)
+			buf.append(""synchronized "");
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_NATIVE) != 0)
+			buf.append(""native "");
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_ABSTRACT) != 0)
+			buf.append(""abstract "");
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_STRICT) != 0)
+			buf.append(""strictfp "");
+		return buf.toString().trim();
+	}
+
+	public static short getAccessFlag_Method(String s) {
+		short ret = 0x0;
+		if (s.indexOf(""public"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_PUBLIC);
+		if (s.indexOf(""private"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_PRIVATE);
+
+		if (s.indexOf(""protected"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_PROTECTED);
+
+		if (s.indexOf(""static"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_STATIC);
+
+		if (s.indexOf(""final"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_FINAL);
+
+		if (s.indexOf(""synchronized"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_SYNCHRONIZED);
+
+		if (s.indexOf(""native"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_NATIVE);
+
+		if (s.indexOf(""abstract"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_ABSTRACT);
+
+		if (s.indexOf(""strictfp"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_STRICT);
+		return ret;
+	}
+
+	public static short getAccessFlag_Field(String s) {
+		short ret = 0x0;
+		if (s.indexOf(""public"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_PUBLIC);
+		if (s.indexOf(""private"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_PRIVATE);
+
+		if (s.indexOf(""protected"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_PROTECTED);
+
+		if (s.indexOf(""static"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_STATIC);
+
+		if (s.indexOf(""final"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_METHOD_FINAL);
+
+		if (s.indexOf(""volatile"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_FIELD_VOLATILE);
+
+		if (s.indexOf(""transient"") != -1)
+			ret = (short) (ret | Constants.ACCESS_FLAG_FIELD_TRANSIENT);
+		return ret;
+
+	}
+
+	public static boolean hasMethodBody(short accessFlag) {
+		if ((accessFlag & Constants.ACCESS_FLAG_METHOD_ABSTRACT) != 0 || (accessFlag & Constants.ACCESS_FLAG_METHOD_NATIVE) != 0) {
+			return false;
+		} else {
+			return true;
+		}
+	}
+
+	public static String methodParameterToString(String paras) {
+		if (paras == null || paras.trim().length() == 0) {
+			return """";
+		}
+		StringBuffer buf = new StringBuffer();
+		String brackets;
+		int ti;
+
+		for (int i = 0; i < paras.length(); i++) {
+			switch (paras.charAt(i)) {
+			case 'B':
+				buf.append(""byte"");
+				break;
+			case 'C':
+				buf.append(""char"");
+				break;
+			case 'D':
+				buf.append(""double"");
+				break;
+			case 'F':
+				buf.append(""float"");
+				break;
+			case 'I':
+				buf.append(""int"");
+				break;
+			case 'J':
+				buf.append(""long"");
+				break;
+			case 'S':
+				buf.append(""short"");
+				break;
+			case 'Z':
+				buf.append(""boolean"");
+				break;
+			case 'V':
+				buf.append(""void"");
+				break;
+			case '[':
+				brackets = ""[]"";
+				while (paras.charAt(++i) == '[') {
+					brackets = brackets + ""[]"";
+				}
+				if (paras.charAt(i) == 'L') {
+					ti = paras.indexOf((int) ';', i);
+					buf.append(Util.descriptorToString(paras.substring(i, ti + 1)));
+					i = ti;
+				} else {
+					buf.append(Util.descriptorToString(Character.toString(paras.charAt(i))));
+				}
+				buf.append(brackets);
+				break;
+			case 'L':
+				ti = paras.indexOf((int) ';', i);
+				buf.append(Util.descriptorToString(paras.substring(i, ti + 1)));
+				i = ti;
+				break;
+			default:
+				buf.append(""[unknow paras("" + paras.charAt(i) + "")]"");
+			}
+			buf.append("","");
+		}
+		buf.deleteCharAt(buf.length() - 1);
+		return buf.toString();
+	}
+
+	public static String descriptorToString(String type) {
+		if (type == null || type.trim().length() == 0) {
+			return """";
+		}
+		switch (type.charAt(0)) {
+		case 'B':
+			return ""byte"";
+		case 'C':
+			return ""char"";
+		case 'D':
+			return ""double"";
+		case 'F':
+			return ""float"";
+		case 'I':
+			return ""int"";
+		case 'J':
+			return ""long"";
+		case 'L':
+			return type.substring(1, type.length() - 1).replace('/', '.');
+		case 'S':
+			return ""short"";
+		case 'Z':
+			return ""boolean"";
+
+		case '[':
+			int dim = 1;
+			String brackets = ""[]"";
+			while (type.charAt(dim) == '[') {
+				dim++;
+				brackets = brackets + ""[]"";
+			}
+			return descriptorToString(type.substring(dim)) + brackets;
+		case 'V':
+			return ""void"";
+		default:
+			return ""[unknow type("" + type + "")]"";
+		}
+	}
+
+	/*
+	 * A type of any class must starts with 'L'
+	 */
+	public static String toInnerType(String normalType) {
+		if (normalType == null || normalType.length() == 0)
+			return """";
+
+		String ret = """";
+		int i;
+		for (i = normalType.length() - 1; i >= 0; i--) {
+			if (normalType.charAt(i) == '[') {
+				ret = ret + ""["";
+			} else if (normalType.charAt(i) != ']') {
+				break;
+			}
+		}
+		normalType = normalType.substring(0, i + 1).trim();
+
+		if (normalType.equals(""byte"") == true)
+			ret = ret + ""B"";
+		else if (normalType.equals(""char"") == true)
+			ret = ret + ""C"";
+		else if (normalType.equals(""double"") == true)
+			ret = ret + ""D"";
+		else if (normalType.equals(""float"") == true)
+			ret = ret + ""F"";
+		else if (normalType.equals(""int"") == true)
+			ret = ret + ""I"";
+		else if (normalType.equals(""long"") == true)
+			ret = ret + ""J"";
+		else if (normalType.equals(""short"") == true)
+			ret = ret + ""S"";
+		else if (normalType.equals(""boolean"") == true)
+			ret = ret + ""Z"";
+		else if (normalType.equals(""void"") == true)
+			ret = ""V"";
+		else
+			ret = ret + ""L"" + normalType.replace('.', '/') + "";"";
+		return ret;
+	}
+
+	/*
+	 * 
+	 * It is used in constant_class_info structure. Can be like
+	 * java.lang.Object, java.lang.Object[][], int[][]. the difference with
+	 * toInnerType() is when translating java.lang.Object, the toInnerType()
+	 * will get Ljava/lang/Object; while this method will get java/lang/Object.
+	 */
+	public static String toInnerClassName(String className) {
+		int i, dim = 0;
+
+		for (i = 0; i < className.length(); i++) {
+			if (className.charAt(i) == '[')
+				dim++;
+		}
+
+		i = className.indexOf('[');
+
+		if (i != -1) {
+			className = className.substring(0, i);
+		} else {
+			return className.replace('.', '/');
+		}
+
+		className = toInnerType(className);
+		while (dim-- > 0) {
+			className = ""["" + className;
+		}
+		return className;
+	}
+
+	public static String toInnerParameterTypes(String paras) {
+		if (paras == null || paras.length() == 0) {
+			return """";
+		}
+		StringBuffer buf = new StringBuffer();
+		StringTokenizer token = new StringTokenizer(paras, "","");
+
+		while (token.hasMoreTokens() == true) {
+			buf.append(toInnerType(token.nextToken()));
+		}
+		return buf.toString();
+	}
+
+	public static String getInnerMethodDescriptor(String retType, String paras) {
+		StringBuffer buf = new StringBuffer();
+		buf.append('(');
+		buf.append(toInnerParameterTypes(paras));
+		buf.append(')');
+		buf.append(toInnerType(retType));
+		return buf.toString();
+	}
+
+	public static boolean isDigit(String s) {
+		char c;
+		for (int i = 0; i < s.length(); i++) {
+			c = s.charAt(i);
+			if (Character.isDigit(c) == false) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * given an integer number, parse it in byte array, the highest values at
+	 * front
+	 * 
+	 * @param num
+	 * @param dim
+	 * @return byte[]
+	 */
+	public static byte[] getBytes(int num, int dim) {
+		byte[] ret = new byte[dim];
+		if (dim == 1) {
+			ret[0] = (byte) num;
+		} else if (dim == 2) {
+			ret[0] = (byte) ((num >> 8) & 0xFF);
+			ret[1] = (byte) (num & 0xFF);
+		} else if (dim == 4) {
+			ret[0] = (byte) ((num >> 24) & 0xFF);
+			ret[1] = (byte) ((num >> 16) & 0xFF);
+			ret[2] = (byte) ((num >> 8) & 0xFF);
+			ret[3] = (byte) (num & 0xFF);
+		}
+		return ret;
+	}
+
+	/**
+	 * A constant class object contains inner representation of a class, like
+	 * java/lang/Object, or inner representation of a class array, like
+	 * Ljava/lang/Object; , or that of a primitive type array, like [[I
+	 * 
+	 * @param s
+	 * @return String
+	 */
+	public static String constantClassToString(String s) {
+		int i = s.indexOf('[');
+		if (i == -1) {
+			// not an array
+			return s.replace('/', '.');
+		} else {
+			return descriptorToString(s);
+		}
+	}
+
+	public static byte getPrimitiveTypeCode(String primitiveType) {
+		int i;
+		for (i = 0; i < Constants.TYPE_NAMES.length; i++) {
+			if (Constants.TYPE_NAMES[i].equals(primitiveType) == true) {
+				return (byte) i;
+			}
+		}
+		// TODO:, throws exception
+		return (byte) 0;
+	}
+
+	/**
+	 * replaces any \b \t \n \f \r \"" \' \\ chars to a viewable string.
+	 * 
+	 * @param s
+	 * @return string
+	 */
+	public static String toViewableString(String s) {
+		StringBuffer buf = new StringBuffer(s.length() + 10);
+		char c;
+		buf.append('""');
+		int len = s.length();
+		for (int i = 0; i < len; i++) {
+			c = s.charAt(i);
+			switch (c) {
+			case '\b':
+				buf.append(""\\b"");
+				break;
+			case '\t':
+				buf.append(""\\t"");
+				break;
+			case '\n':
+				buf.append(""\\n"");
+				break;
+			case '\f':
+				buf.append(""\\f"");
+				break;
+			case '\r':
+				buf.append(""\\r"");
+				break;
+			case '\\':
+				buf.append(""\\\\"");
+				break;
+			case '""':
+				buf.append(""\\\"""");
+				break;
+			case '!':
+			case '\'':
+			case '#':
+			case '$':
+			case '%':
+			case '&':
+			case '(':
+			case ')':
+			case '*':
+			case '+':
+			case ',':
+			case '-':
+			case '.':
+			case '/':
+			case '0':
+			case '1':
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
+			case ':':
+			case ';':
+			case '<':
+			case '=':
+			case '>':
+			case '?':
+			case '@':
+			case 'A':
+			case 'B':
+			case 'C':
+			case 'D':
+			case 'E':
+			case 'F':
+			case 'G':
+			case 'H':
+			case 'I':
+			case 'J':
+			case 'K':
+			case 'L':
+			case 'M':
+			case 'N':
+			case 'O':
+			case 'P':
+			case 'Q':
+			case 'R':
+			case 'S':
+			case 'T':
+			case 'U':
+			case 'V':
+			case 'W':
+			case 'X':
+			case 'Y':
+			case 'Z':
+			case '[':
+			case ']':
+			case '^':
+			case '_':
+			case '`':
+			case 'a':
+			case 'b':
+			case 'c':
+			case 'd':
+			case 'e':
+			case 'f':
+			case 'g':
+			case 'h':
+			case 'i':
+			case 'j':
+			case 'k':
+			case 'l':
+			case 'm':
+			case 'n':
+			case 'o':
+			case 'p':
+			case 'q':
+			case 'r':
+			case 's':
+			case 't':
+			case 'u':
+			case 'v':
+			case 'w':
+			case 'x':
+			case 'y':
+			case 'z':
+			case '{':
+			case '|':
+			case '}':
+			case '~':
+			case ' ':
+				buf.append(c);
+				break;
+			default:
+				buf.append(getUnicodeChar(c));
+			}
+
+		}
+		buf.append('""');
+		return buf.toString();
+	}
+
+	public static String getUnicodeChar(char c) {
+		return ""\\u"" + Digits[(c & 0xF000) >> 12] + Digits[(c & 0x0F00) >> 8] + Digits[(c & 0x00F0) >> 4] + Digits[(c & 0x000F)];
+	}
+
+	public final static char[] Digits = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+	public final static int[] Numbers = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0/*'0'*/, 1/*'1'*/, 2/*'2'*/, 3/*'3'*/, 4/*'4'*/, 5/*'5'*/, 6/*'6'*/, 7/*'7'*/, 8/*'8'*/,
+			9/*'9'*/, 0, 0, 0, 0, 0, 0, 0, 10/*'A'*/, 11/*'B'*/, 12/*'C'*/, 13/*'D'*/, 14/*'E'*/, 15/*'F'*/, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10/*'a'*/, 11/*'b'*/, 12/*'c'*/, 13/*'d'*/, 14/*'e'*/, 15 /*'f'*/};
+
+	// \b \t \n \f \r \""  \\ chars to a viewable string
+	public static String parseViewableString(String s) {
+		int len = s.length();
+		StringBuffer buf = new StringBuffer(len);
+		char c;
+		int ti;
+		for (int i = 0; i < len; i++) {
+			c = s.charAt(i);
+			if (c == '\\') {
+				i++;
+				if (i < len) {
+					switch (s.charAt((i))) {
+					case 'b':
+						buf.append('\b');
+						break;
+					case 't':
+						buf.append('\t');
+						break;
+					case 'n':
+						buf.append('\n');
+						break;
+					case 'f':
+						buf.append('\f');
+						break;
+					case 'r':
+						buf.append('\r');
+						break;
+					case '""':
+						buf.append('\""');
+						break;
+					case '\\':
+						buf.append('\\');
+						break;
+					case 'u':
+						//four digits
+						ti = 0;
+						i++;
+						c = s.charAt(i);
+						ti = Numbers[(int) c] << 12;
+						i++;
+						c = s.charAt(i);
+						ti = ti | (Numbers[(int) c] << 8);
+						i++;
+						c = s.charAt(i);
+						ti = ti | (Numbers[(int) c] << 4);
+						i++;
+						c = s.charAt(i);
+						ti = ti | Numbers[(int) c];
+						buf.append((char) ti);
+					}
+				}
+			} else {
+				buf.append(c);
+			}
+		}
+		return buf.toString();
+	}
+
+	public static String padChar(String s, int len, char padChar) {
+		if (s.length() >= len) {
+			return s;
+		}
+		StringBuffer buf = new StringBuffer(len);
+		buf.append(s);
+		for (int i = 0; i < len - s.length(); i++) {
+			buf.append(padChar);
+		}
+		return buf.toString();
+	}
+
+	public static int getNum(byte[] bytes) {
+		if (bytes.length == 1) {
+			return bytes[0] & 0xFF;
+		} else if (bytes.length == 2) {
+			return ((bytes[0] & 0xff) << 8) + (bytes[1] & 0xff);
+		} else if (bytes.length == 4) {
+			return (((bytes[0] & 0xff) << 24) + ((bytes[1] & 0xff) << 16) + ((bytes[2] & 0xff) << 8) + (bytes[3] & 0xff));
+		}
+		return -1;
+	}
+
+	public static int getSignedNum(byte[] bytes) {
+		if (bytes.length == 1) {
+			return bytes[0];
+		} else if (bytes.length == 2) {
+			return ((bytes[0]) << 8) | ((bytes[1]) & 0xFF);
+		} else if (bytes.length == 4) {
+			return (bytes[0] << 24) | ((bytes[1] << 16) & 0xFF0000) | ((bytes[2] << 8) & 0xFF00) + (bytes[3] & 0xFF);
+		}
+		return -1;
+	}
+
+	public static void main(String[] args) {
+		int i = 0;
+		switch (i) {
+		case 0:
+			System.out.println(i++);
+		case 1:
+			System.out.println(i++);
+		case 2:
+			System.out.println(i);
+		case 3:
+			System.out.println(i);
+		case 4:
+			System.out.println(i);
+		}
+
+	}
+
+}",True
