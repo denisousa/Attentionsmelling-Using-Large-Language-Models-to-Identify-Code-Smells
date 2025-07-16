@@ -26,8 +26,8 @@ Within the project directory, you'll find several important folders and files re
 
 - **Python version**: >= 3.10
 - **Dependencies**: Listed in the `requirements.txt` file, which can be installed using `pip`.
-- **Storage**: This project requires significant storage space for datasets and generated models.
-- **Operating System**: Linux, macOS, or Windows should work, but ensure that your system meets the hardware and software requirements.
+- **Storage**: This project does not require significant storage space for the generated datasets.
+- **Operating System**: Linux, macOS, or Windows should work.
 - **Additional Software**: None, but the project uses OpenAI's API, so you'll need access to their platform.
 
 ## ⚙️ Installation
