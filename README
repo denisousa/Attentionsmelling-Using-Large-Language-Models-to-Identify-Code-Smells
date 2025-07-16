@@ -1,6 +1,9 @@
 
 # AttentionSmelling — Using Large Language Models to Identify Code Smells
 
+## 📄 Description
+This replication package accompanies the paper "Attentionsmelling: Using Large Language Models to Identify Code Smells," which systematically evaluates GPT-4o’s ability to detect three key code smells—Long Method, God Class, and Feature Envy—in Java code. The artifact centers on a Jupyter notebook that guides users through all steps of data preprocessing, experiment execution, and error analysis, following the paper’s methodology. It uses a refined oracle derived from the Crowdsmelling dataset, applying majority voting to reduce subjectivity and focusing on the jasml-0.10 project for consistency. Four experimental configurations progressively enhance the LLM prompts, incorporating definitions, code metrics, and hyperparameter tuning, leading to a 64% improvement in AUC and 56% in F1-score. The notebook includes instructions, dataset references, and scripts for reproducing the full analysis pipeline. Designed for reproducibility and accessibility, it requires only basic Python and Jupyter knowledge and runs on standard hardware or Google Colab. The package enables detailed evaluation of LLM-based code smell detection, provides error and confidence analysis, and offers a practical resource for both research and education. All artifacts are publicly available, well-documented, and ready for reuse or extension. Limitations include the focus on a single Java project and reliance on the adopted code smell definitions, which may affect generalizability to other contexts.
+
 ## 📄 Paper
 The research paper for this project is available in the `artifact` folder:
 
