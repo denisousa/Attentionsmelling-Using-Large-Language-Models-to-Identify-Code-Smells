@@ -1,0 +1,64 @@
+
+# AttentionSmelling — Using Large Language Models to Identify Code Smells
+
+## 📄 Paper
+The research paper for this project is available in the `artifact` folder:
+
+- [paper.pdf](./artifact/paper.pdf)
+
+## 💾 Storage Requirements & Legal Disclaimers
+This project may require significant storage space, depending on the dataset and model interactions.
+
+### Ethical and Legal Statements
+This project is licensed under the GNU General Public License v3.0.
+
+## 🗂️ Project Files
+
+Within the project directory, you'll find several important folders and files related to the research and experiment:
+
+- **`artifact/`**: Contains the main experiment code, the research paper, and all other folders related to the project, including:
+  - `main.ipynb`: This notebook holds the complete code responsible for the experiment discussed in the research paper.
+  - `ground_truth/`: Contains the analyzed code smells used in the research.
+  - `research_questions/`: This folder includes the results obtained for each code smell analyzed in the research.
+  - `plots/`: Contains the generated graphs and visualizations related to the results.
+
+## 📋 Requirements
+
+- **Python version**: >= 3.10
+- **Dependencies**: Listed in the `requirements.txt` file, which can be installed using `pip`.
+- **Storage**: This project requires significant storage space for datasets and generated models.
+- **Operating System**: Linux, macOS, or Windows should work, but ensure that your system meets the hardware and software requirements.
+- **Additional Software**: None, but the project uses OpenAI's API, so you'll need access to their platform.
+
+## ⚙️ Installation
+
+1. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   venv\Scripts\activate     # Windows
+   ```
+
+2. Install the required dependencies (inside `artifact` folder):
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+## ▶️ How to Execute
+
+1. Rename the `.env.example` file to `.env`.
+
+2. Open the `.env` file and set your OpenAI API token:
+   ```
+   OPENAI_TOKEN=your_openai_token_here
+   ```
+
+   You can obtain a valid token by subscribing to OpenAI's services here:
+   👉 [OpenAI Platform](https://platform.openai.com/settings/organization/billing/payment-methods)
+
+3. Run the `main.ipynb` notebook.
+
+   - Open `main.ipynb` in a Jupyter environment (e.g., Jupyter Notebook or JupyterLab).
+   - Run each cell in sequence.
+
+✅ **Expected Output**: The script should run without errors, and you should see the analysis and results being printed in the notebook. 
